@@ -42,15 +42,20 @@ def make_klines():
 
 
 class _FakeSnap:
-    def __init__(self, mapping):
+    def __init__(self, mapping, sources=None):
         self._m = mapping
+        self.sources = sources or {}
 
     def klines(self, tf):
         return self._m.get(tf, [])
 
+    def last_close(self, tf):
+        ks = self._m.get(tf, [])
+        return ks[-1].close if ks else None
+
 
 @pytest.fixture
 def make_snap():
-    def _make(**tf_klines):
-        return _FakeSnap(tf_klines)
+    def _make(sources=None, **tf_klines):
+        return _FakeSnap(tf_klines, sources)
     return _make
