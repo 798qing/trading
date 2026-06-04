@@ -42,9 +42,10 @@ def make_klines():
 
 
 class _FakeSnap:
-    def __init__(self, mapping, sources=None):
+    def __init__(self, mapping, sources=None, data_quality=None):
         self._m = mapping
         self.sources = sources or {}
+        self.data_quality = data_quality or {}
 
     def klines(self, tf):
         return self._m.get(tf, [])
@@ -56,6 +57,6 @@ class _FakeSnap:
 
 @pytest.fixture
 def make_snap():
-    def _make(sources=None, **tf_klines):
-        return _FakeSnap(tf_klines, sources)
+    def _make(sources=None, data_quality=None, **tf_klines):
+        return _FakeSnap(tf_klines, sources, data_quality)
     return _make

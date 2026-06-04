@@ -11,8 +11,8 @@ from detectors.base import Detector, DetectorResult, find_swings
 class StructureDetector(Detector):
     name = "structure"
 
-    def detect(self, snapshot, cfg) -> DetectorResult:
-        tf = cfg.require("timeframes.primary")
+    def detect(self, snapshot, cfg, tf: str | None = None) -> DetectorResult:
+        tf = tf or cfg.require("timeframes.primary")
         klines = snapshot.klines(tf)
         params = cfg.get("detectors.structure", {})
         lookback = params.get("swing_lookback", 5)
