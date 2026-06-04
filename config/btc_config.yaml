@@ -1,0 +1,136 @@
+# ============================================================================
+# BTC 交易分析 Agent · 配置
+# ----------------------------------------------------------------------------
+# config_version 由 config.py 对“进评分相关”部分做指纹（P0-4）自动计算，
+# 不需手填。display / ops 两段不参与指纹（纯展示/运维，热加载安全）。
+# 改动任何评分相关阈值 → config_version 自动变化 → 写入 snapshot/analyses 可追溯。
+# ============================================================================
+
+meta:
+  label: "btc-v1"               # 人类可读标签，仅供日志，不影响指纹
+  symbol: "BTC-USDT-SWAP"       # 首发品种（OKX 永续）
+  quote: "USDT"
+
+timeframes:
+  # 检测器输入周期；“大周期”用于趋势/多周期冲突判定（缺口9）
+  all: ["5m", "15m", "1h", "4h", "1d"]
+  primary: "15m"                # 主分析周期
+  higher: ["4h", "1d"]          # 大周期（trend_multiplier / 多周期冲突）
+  min_klines: 300               # 每个周期最少加载根数
+
+# --- 决策阈值（进评分/决策，纳入指纹）-------------------------------------
+scoring:
+  push_threshold: 65            # 综合评分 ≥ 此值才推送（架构七节）
+  standard_card_score: 60       # ≥ 此值出标准卡，否则观望卡
+  conflict_score_cap: 55        # 多周期冲突时评分上限（缺口9）
+  # P0-5 启动断言：conflict_score_cap < push_threshold（55 < 65），否则拒绝加载
+  score_update_delta: 15        # 评分变化 > 此值才以“🔁信号更新”重推（缺口4）
+
+# --- 硬约束（D5）-----------------------------------------------------------
+hard_constraints:
+  structural_veto:              # 结构性否决，无例外
+    higher_tf_opposite: true    # 大周期方向相反 → 否决
+    breakout_low_volume: true   # 突破缩量 → 否决
+  contextual_veto:              # 情境性否决，有例外
+    adx_min: 18                 # ADX < 18 视为无趋势（wyckoff 确认事件豁免）
+    macro_event_window_min: 60  # 宏观事件（FOMC/CPI）前后 60min 内否决
+
+# --- 信号聚合权重（架构四节，纳入指纹；P0-4：fusion weights 进 config_version）---
+fusion:
+  base_weights:
+    wyckoff: 1.2                # 第一版降权；候选事件不进评分（D4）
+    volume: 2.0
+    structure: 1.5
+    candle: 1.0
+    macd: 1.0
+    rsi: 0.8
+    fib: 0.8
+    adx: 0.5
+    vol_profile: 1.2
+    liquidation: 0.8
+    oi_funding: 1.0             # 阶段2接入评分（因子P0-①）
+    basis: 0.8                  # 阶段2（因子P0-②）
+
+  wyckoff_confidence_gate:      # 置信度门槛，低置信度自动降权
+    high: 2.0
+    medium: 1.2
+    low: 0.5
+
+  data_quality_multiplier:      # 数据精度降权
+    exact: 1.0
+    approximated: 0.7
+    stale: 0.3
+    unavailable: 0.0
+
+  trend_multiplier:
+    with_trend: 1.5
+    against_trend: 0.5
+
+  trend_multiplier_exempt:      # 反转信号不被趋势降权
+    - wyckoff
+  exempt_events:
+    - UTAD
+    - SOW
+    - Spring
+    - SC
+
+# --- 计划生成（plan_builder，价格唯一来源 D3，纳入指纹）---------------------
+plan_builder:
+  entry_max_deviation_pct: 2.0  # 入场价偏离标记价 ≤ 2%
+  stop_min_pct: 0.5             # 止损距离下限
+  stop_max_pct: 5.0             # 止损距上限
+  min_risk_reward: 1.5          # 盈亏比 ≥ 1.5:1
+  atr_period: 14
+  signal_ttl_klines: 4          # 信号有效期 = 4 根 15m（=1h，架构十六节）
+
+# --- 交易生命周期成本（回测/盈亏比计算，纳入指纹）-------------------------
+costs:
+  fee_maker_pct: 0.02
+  fee_taker_pct: 0.05
+  slippage_pct: 0.05
+  funding_interval_hours: 8     # 资金费率每 8h 计入
+
+# --- 检测器参数（versioned_detector_params，纳入指纹）----------------------
+detectors:
+  structure:
+    swing_lookback: 5           # 摆动高低点确认窗口
+    swing_confirm_delay: 2      # P0-3 防前视：swing 延迟 N 根才可见
+  volume:
+    spike_ratio: 2.0            # 暴量阈值（相对均量）
+    breakout_min_ratio: 1.2     # 突破最低量能比（低于=缩量→structural_veto）
+  adx:
+    period: 14
+    strong: 30                  # ADX > 30 视为强趋（RSI 降级例外用）
+  fib:
+    levels: [0.382, 0.5, 0.618, 0.786]
+    extensions: [1.272, 1.618]
+    confluence_tolerance_pct: 0.5
+  rsi:
+    period: 14
+    overbought: 70
+    oversold: 30
+  liquidity_filter:             # 缺口2 低流动性时段
+    low_volume_ratio: 0.4       # 当前量 < 24h 同周期均量 0.4x
+    penalty_multiplier: 0.5
+
+# ============================================================================
+# 以下两段不参与 config_version 指纹（纯展示/运维，热加载安全）
+# ============================================================================
+display:
+  timezone: "Asia/Shanghai"     # 展示层时区（存储仍为 UTC，D8）
+  radar_bar_width: 5            # 进度条格数
+  fear_greed_labels: true
+
+ops:
+  db_path: "data/trading.db"
+  precompute_interval_min: 15   # 预采集周期（只采数据，不推送）
+  push:
+    cooldown_min: 240           # 同向同入场区 4h 内不重复推送（缺口4）
+    dedup_window_sec: 60        # 同指令 60s 去重
+    queue_max: 3
+  llm:
+    provider: "deepseek"        # 无备用（D15 简化：deepseek → naked-chart）
+    timeout_sec: 20
+    fail_pause_after: 3         # 连续 3 次失败 → 暂停 30min
+    fail_pause_min: 30
+  config_watcher_interval_sec: 30

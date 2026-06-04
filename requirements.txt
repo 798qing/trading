@@ -1,0 +1,7 @@
+# Runtime deps — pinned loosely, Python 3.11+
+PyYAML>=6.0
+httpx>=0.27          # OKX / REST collectors (sync client)
+python-telegram-bot>=21.0   # bot.py — Telegram /btc 入口
+
+# Dev / test
+pytest>=8.0
