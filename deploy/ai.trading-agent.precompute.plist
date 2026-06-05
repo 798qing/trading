@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  预采集 launchd 配置（每 15 分钟跑一次 precompute）。
+  安装（把 __HOME__ 换成你的家目录，或用下面的 sed 命令自动替换）：
+
+    sed "s#__HOME__#$HOME#g" deploy/ai.trading-agent.precompute.plist \
+      > ~/Library/LaunchAgents/ai.trading-agent.precompute.plist
+    launchctl load ~/Library/LaunchAgents/ai.trading-agent.precompute.plist
+    launchctl list | grep trading-agent          # 验证
+    tail -f __HOME__/trading-agent/data/precompute.log
+
+  卸载：
+    launchctl unload ~/Library/LaunchAgents/ai.trading-agent.precompute.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.trading-agent.precompute</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/trading-agent/.venv/bin/python</string>
+    <string>-m</string>
+    <string>precompute</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__/trading-agent/src</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>
+    <string>__HOME__/trading-agent/src</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>900</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/trading-agent/data/precompute.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/trading-agent/data/precompute.log</string>
+</dict>
+</plist>

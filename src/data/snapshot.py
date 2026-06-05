@@ -141,6 +141,32 @@ def build_snapshot(store: Store, cfg: Config, aux: dict[str, dict | None],
     return snap
 
 
+def latest_sources(store: Store) -> dict[str, dict | None]:
+    """从最近一条已存快照取回 mark/funding/oi（作为热路径重算的 aux）。
+
+    让 /btc 能用 precompute 落库的最新外部数据重建快照，而不必再 live 拉 OKX。
+    无历史快照时各项返回 None。
+    """
+    row = store.conn.execute(
+        "SELECT payload FROM snapshots ORDER BY ts DESC LIMIT 1").fetchone()
+    if not row:
+        return {"mark": None, "funding": None, "oi": None}
+    import json as _json
+    sources = _json.loads(row["payload"]).get("sources", {})
+    out: dict[str, dict | None] = {}
+    for kind in ("mark", "funding", "oi"):
+        val = sources.get(kind)
+        # 仅在有真实数据时回填（status=unavailable 视为无）
+        out[kind] = val if val and val.get("status") != "unavailable" else None
+    return out
+
+
+def has_klines(store: Store, tf: str, min_rows: int = _MIN_ROWS_FOR_ANALYSIS) -> bool:
+    """库里某周期是否已有足够 K 线（判断要不要先 live 采集）。"""
+    n = store.conn.execute(f"SELECT COUNT(*) FROM kline_{tf}").fetchone()[0]
+    return n >= min_rows
+
+
 def collect_and_freeze(store: Store, cfg: Config, okx, now: int | None = None
                        ) -> Snapshot:
     """联网编排：拉 OKX K线/标记价/费率/OI → 写库 → 冻结快照。
