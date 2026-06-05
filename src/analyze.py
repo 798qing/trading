@@ -9,7 +9,10 @@ from dataclasses import dataclass
 
 from data.snapshot import collect_and_freeze
 from detectors.adx import ADXDetector
+from detectors.candle import CandleDetector
 from detectors.fib import FibDetector
+from detectors.macd import MACDDetector
+from detectors.rsi import RSIDetector
 from detectors.structure import StructureDetector
 from detectors.volume import VolumeDetector
 from fusion.fusion import FusionResult, fuse
@@ -17,7 +20,8 @@ from plan.plan_builder import TradePlan, build_plan
 from review.risk import RiskResult, decide, review_risk
 from review.validate import ValidationResult, validate_plan
 
-_PRIMARY_DETECTORS = (StructureDetector, VolumeDetector, ADXDetector, FibDetector)
+_PRIMARY_DETECTORS = (StructureDetector, VolumeDetector, ADXDetector, FibDetector,
+                      CandleDetector, MACDDetector, RSIDetector)
 
 
 @dataclass

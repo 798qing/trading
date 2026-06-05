@@ -15,6 +15,49 @@ def sma(values: Sequence[float], period: int) -> float | None:
     return sum(values[-period:]) / period
 
 
+def ema_series(values: Sequence[float], period: int) -> list[float]:
+    """EMA 序列（与输入等长，ema[0]=values[0] 起步）。"""
+    if not values:
+        return []
+    alpha = 2 / (period + 1)
+    out = [values[0]]
+    for v in values[1:]:
+        out.append(alpha * v + (1 - alpha) * out[-1])
+    return out
+
+
+def macd(closes: Sequence[float], fast: int = 12, slow: int = 26, signal: int = 9
+         ) -> tuple[list[float], list[float], list[float]] | None:
+    """返回 (DIF, DEA, HIST) 三条等长序列；样本不足返回 None。"""
+    if len(closes) < slow + signal:
+        return None
+    ef, es = ema_series(closes, fast), ema_series(closes, slow)
+    dif = [a - b for a, b in zip(ef, es)]
+    dea = ema_series(dif, signal)
+    hist = [d - s for d, s in zip(dif, dea)]
+    return dif, dea, hist
+
+
+def rsi(closes: Sequence[float], period: int = 14) -> float | None:
+    """Wilder RSI 最新值；样本不足返回 None。"""
+    if len(closes) < period + 1:
+        return None
+    gains, losses = [], []
+    for i in range(1, len(closes)):
+        ch = closes[i] - closes[i - 1]
+        gains.append(max(ch, 0.0))
+        losses.append(max(-ch, 0.0))
+    avg_g = sum(gains[:period]) / period
+    avg_l = sum(losses[:period]) / period
+    for i in range(period, len(gains)):
+        avg_g = (avg_g * (period - 1) + gains[i]) / period
+        avg_l = (avg_l * (period - 1) + losses[i]) / period
+    if avg_l == 0:
+        return 100.0
+    rs = avg_g / avg_l
+    return 100 - 100 / (1 + rs)
+
+
 def true_ranges(klines: Sequence) -> list[float]:
     """TR_t = max(H-L, |H-prevC|, |L-prevC|)。长度 = len-1。"""
     trs: list[float] = []
