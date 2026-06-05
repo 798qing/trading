@@ -15,13 +15,15 @@ from detectors.macd import MACDDetector
 from detectors.rsi import RSIDetector
 from detectors.structure import StructureDetector
 from detectors.volume import VolumeDetector
+from detectors.wyckoff import WyckoffDetector
 from fusion.fusion import FusionResult, fuse
 from plan.plan_builder import TradePlan, build_plan
 from review.risk import RiskResult, decide, review_risk
 from review.validate import ValidationResult, validate_plan
 
+# wyckoff 第一版只作观察字段(D4)：direction=neutral，fusion 自动跳过不进评分。
 _PRIMARY_DETECTORS = (StructureDetector, VolumeDetector, ADXDetector, FibDetector,
-                      CandleDetector, MACDDetector, RSIDetector)
+                      CandleDetector, MACDDetector, RSIDetector, WyckoffDetector)
 
 
 @dataclass

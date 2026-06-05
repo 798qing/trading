@@ -122,6 +122,18 @@ def build_wait_card(a, cfg) -> str:
         "  上方阻力  " + (" / ".join(f"${_price(pp)} ({s})" for pp, s in res) or "—"),
         "  下方支撑  " + (" / ".join(f"${_price(pp)} ({s})" for pp, s in sup) or "—"),
     ]
+    # 观察字段：仅当有 wyckoff 候选时渲染（D4：不构成信号、不推送）
+    wy = (getattr(a, "signals", None) or {}).get("wyckoff", {})
+    wy_events = wy.get("events", [])
+    if wy_events:
+        wd = wy.get("details", {})
+        lines += [
+            "", "👀 观察字段(不构成信号)",
+            f"  威科夫  {wd.get('phase_hypothesis','?')} · {'/'.join(wy_events)} (观察·未确认)",
+        ]
+        if wd.get("invalid_if"):
+            lines.append(f"          失效：{wd['invalid_if']}")
+
     # 等什么
     lean = f.direction
     if lean == "bullish" and res:
