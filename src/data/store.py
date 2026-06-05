@@ -168,6 +168,16 @@ class Store:
              f"LIMIT ?) ORDER BY ts ASC")
         return self.conn.execute(q, (before_ts, limit)).fetchall()
 
+    def klines_after(self, tf: str, after_ts: int, limit: int = 8
+                     ) -> list[sqlite3.Row]:
+        """取 ts 严格大于 after_ts 的前 limit 根，升序。用于结算重放窗口（P0-2）。"""
+        if tf not in _KLINE_TFS:
+            raise ValueError(f"未知周期 {tf}")
+        return self.conn.execute(
+            f"SELECT * FROM kline_{tf} WHERE ts>? ORDER BY ts ASC LIMIT ?",
+            (after_ts, limit),
+        ).fetchall()
+
     # --- 快照 ---
     def save_snapshot(self, snapshot_id: str, ts: int, symbol: str,
                       market_state: str | None, payload: dict, data_quality: dict,

@@ -9,6 +9,7 @@ import logging
 import sys
 
 from analyze import analyze, persist
+from backtest.settle import settle_due
 from common.config import load_config
 from data.collectors.okx import OKXError, OKXClient
 from data.store import Store
@@ -26,9 +27,10 @@ def cycle() -> int:
         with OKXClient(timeout=cfg.get("ops.llm.timeout_sec", 20)) as okx:
             a = analyze(store, cfg, okx=okx)
         aid = persist(store, cfg, a)
-        log.info("snapshot=%s score=%s dir=%s rec=%s analysis_id=%s dq_complete=%s",
+        settled = settle_due(store, cfg)        # P0-2：每根收线扫描回填到期信号
+        log.info("snapshot=%s score=%s dir=%s rec=%s analysis_id=%s dq_complete=%s settled=%s",
                  a.snapshot.snapshot_id, a.fusion.score, a.fusion.direction,
-                 a.recommendation, aid, a.snapshot.data_quality.get("is_complete"))
+                 a.recommendation, aid, a.snapshot.data_quality.get("is_complete"), settled)
         return 0
     except OKXError as e:
         log.error("采集失败（OKX）：%s", e)
