@@ -20,7 +20,7 @@ log = logging.getLogger("precompute")
 
 def cycle() -> int:
     cfg = load_config()
-    store = Store(cfg.get("ops.db_path", "data/trading.db"))
+    store = Store(cfg.db_path)
     store.init_db()
     try:
         with OKXClient(timeout=cfg.get("ops.llm.timeout_sec", 20)) as okx:

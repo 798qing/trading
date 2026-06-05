@@ -76,7 +76,7 @@ def build_app(cfg, store) -> Application:
 
 def main() -> None:
     cfg = load_config()
-    store = Store(cfg.get("ops.db_path", "data/trading.db"))
+    store = Store(cfg.db_path)
     store.init_db()
     app = build_app(cfg, store)
     log.info("bot 启动，配置版本 %s，监听 /btc …", cfg.version)

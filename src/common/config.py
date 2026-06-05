@@ -55,6 +55,17 @@ class Config:
     def secret(self, key: str, default: str | None = None) -> str | None:
         return self.secrets.get(key, default)
 
+    @property
+    def root(self) -> Path:
+        """repo 根目录（= config 文件的上两级），用于把相对路径锚定到固定位置。"""
+        return self.path.resolve().parent.parent
+
+    @property
+    def db_path(self) -> Path:
+        """ops.db_path 的绝对路径，与进程 cwd 无关（hermes 从任意目录调都正确）。"""
+        raw = Path(self.get("ops.db_path", "data/trading.db"))
+        return raw if raw.is_absolute() else self.root / raw
+
 
 def _canonical(data: dict[str, Any]) -> bytes:
     """确定性序列化：排序键、紧凑分隔符，保证同内容同指纹。"""

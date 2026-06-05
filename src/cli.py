@@ -52,7 +52,7 @@ def _summary_json(a, cfg) -> dict:
 
 def run(args) -> int:
     cfg = load_config()
-    store = Store(cfg.get("ops.db_path", "data/trading.db"))
+    store = Store(cfg.db_path)
     store.init_db()
     primary = cfg.require("timeframes.primary")
 
