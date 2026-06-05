@@ -1,0 +1,33 @@
+#!/bin/sh
+# 提交规范校验：中文范围式  <范围>: <摘要>
+# 钩子随仓库走（core.hooksPath=.githooks）。放行 merge/revert。
+
+msg_file="$1"
+first_line=$(grep -v '^#' "$msg_file" | sed '/^[[:space:]]*$/d' | head -1)
+
+case "$first_line" in
+  Merge\ *|Revert\ *|"") exit 0 ;;
+esac
+
+# 形状：必须是 “范围: 摘要”（冒号 + 空格 + 非空摘要）
+case "$first_line" in
+  *": "*) ;;
+  *)
+    echo "✗ 提交信息不符合规范：缺少 '范围: 摘要' 结构"
+    echo "  例：fusion: 修复评分越界"
+    echo "  范围词：地基/数据层/检测层/fusion/plan/风控/输出/hermes/测试/文档"
+    exit 1 ;;
+esac
+
+summary=${first_line#*: }
+if [ -z "$summary" ]; then
+  echo "✗ 摘要为空（'范围: ' 后要有内容）"
+  exit 1
+fi
+
+# 标题长度（字符数）软提醒，不阻止
+len=$(printf '%s' "$first_line" | wc -m | tr -d ' ')
+if [ "$len" -gt 60 ]; then
+  echo "⚠ 标题 ${len} 字，偏长，建议 ≤50（仅提醒）"
+fi
+exit 0
