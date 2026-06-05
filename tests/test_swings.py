@@ -26,6 +26,22 @@ def test_swing_hidden_before_confirm():
     assert all(s.idx != 10 for s in highs)
 
 
+def test_flat_plateau_yields_no_false_swings():
+    # 审查#1 回归：完全平坦序列不得把每根都误标为 swing（严格分形）
+    ks = [K(i, 100, 101, 99, 100, 1) for i in range(21)]
+    highs, lows = find_swings(ks, lookback=2, confirm_delay=2)
+    assert highs == [] and lows == []
+
+
+def test_adjacent_equal_highs_not_both_swings():
+    # 两个相邻等高点：严格不等号下都不算 swing（不再误标）
+    ks = [K(i, 100, 101, 99, 100, 1) for i in range(21)]
+    ks[9] = K(9, 100, 120, 99, 100, 1)
+    ks[10] = K(10, 100, 120, 99, 100, 1)   # 与 idx9 等高
+    highs, _ = find_swings(ks, lookback=2, confirm_delay=2)
+    assert all(s.idx not in (9, 10) for s in highs)
+
+
 def test_empty_when_too_short():
     ks = [K(i, 100, 101, 99, 100, 1) for i in range(4)]
     highs, lows = find_swings(ks, lookback=5, confirm_delay=2)

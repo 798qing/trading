@@ -48,9 +48,9 @@ def _collect_levels(signals: dict, ref: float, klines) -> tuple[list, list]:
     """
     levels: list[tuple[float, str]] = []
     struct = signals.get("structure", {}).get("details", {})
-    if struct.get("last_swing_high"):
+    if struct.get("last_swing_high") is not None:
         levels.append((struct["last_swing_high"], "swing_high"))
-    if struct.get("last_swing_low"):
+    if struct.get("last_swing_low") is not None:
         levels.append((struct["last_swing_low"], "swing_low"))
     fib = signals.get("fib", {}).get("details", {})
     for name, price in (fib.get("levels") or {}).items():
@@ -135,25 +135,27 @@ def _build_long(ref, atr_val, resistances, supports, signals, breakout,
         entry_lo, entry_hi = ref - band, ref
         entry_src = ["mark"]
     entry_lo, entry_hi = sorted((entry_lo, entry_hi))
-    entry_ref = (entry_lo + entry_hi) / 2
 
     # 止损：swing_low 与 ATR 取更远者，再夹到 [stop_min, stop_max]
     raw_stop = min(swing_low, entry_lo - atr_val) if swing_low else entry_lo - atr_val
     stop = _clamp_stop_long(raw_stop, entry_lo, stop_min, stop_max)
     stop_src = ["swing_low", "ATR"] if swing_low else ["ATR"]
 
-    # 目标：上方阻力；不足以达 RR 则按 min_rr 投影
-    risk = entry_ref - stop
-    tp1 = resistances[0][0] if resistances else entry_ref + risk * min_rr
-    tp1_src = [resistances[0][1]] if resistances else ["rr_projection"]
-    if _rr(entry_ref, stop, tp1) < min_rr:
-        tp1 = entry_ref + risk * min_rr
+    # 目标：以入场区上沿(最差成交)为 RR 基准，与 validate 的 tp1>entry_hi 口径一致。
+    # 仅采用落在上沿之上的阻力作 TP1，否则按 min_rr 投影。
+    risk = entry_hi - stop
+    if resistances and resistances[0][0] > entry_hi:
+        tp1, tp1_src = resistances[0][0], [resistances[0][1]]
+    else:
+        tp1, tp1_src = entry_hi + risk * min_rr, ["rr_projection"]
+    if _rr(entry_hi, stop, tp1) < min_rr:
+        tp1 = entry_hi + risk * min_rr
         tp1_src = ["rr_projection"]
         notes.append(f"TP1 按最小盈亏比 {min_rr} 投影")
     tp2 = resistances[1][0] if len(resistances) > 1 and resistances[1][0] > tp1 \
         else tp1 + risk
 
-    rr = _rr(entry_ref, stop, tp1)
+    rr = _rr(entry_hi, stop, tp1)
     return TradePlan(
         "long", valid=True,
         entry_zone=[_r(entry_lo), _r(entry_hi)], stop_loss=_r(stop),
@@ -184,23 +186,25 @@ def _build_short(ref, atr_val, resistances, supports, signals, breakout,
         entry_lo, entry_hi = ref, ref + band
         entry_src = ["mark"]
     entry_lo, entry_hi = sorted((entry_lo, entry_hi))
-    entry_ref = (entry_lo + entry_hi) / 2
 
     raw_stop = max(swing_high, entry_hi + atr_val) if swing_high else entry_hi + atr_val
     stop = _clamp_stop_short(raw_stop, entry_hi, stop_min, stop_max)
     stop_src = ["swing_high", "ATR"] if swing_high else ["ATR"]
 
-    risk = stop - entry_ref
-    tp1 = supports[0][0] if supports else entry_ref - risk * min_rr
-    tp1_src = [supports[0][1]] if supports else ["rr_projection"]
-    if _rr(entry_ref, stop, tp1) < min_rr:
-        tp1 = entry_ref - risk * min_rr
+    # RR 以入场区下沿(最差成交)为基准，与 validate 的 tp1<entry_lo 口径一致。
+    risk = stop - entry_lo
+    if supports and supports[0][0] < entry_lo:
+        tp1, tp1_src = supports[0][0], [supports[0][1]]
+    else:
+        tp1, tp1_src = entry_lo - risk * min_rr, ["rr_projection"]
+    if _rr(entry_lo, stop, tp1) < min_rr:
+        tp1 = entry_lo - risk * min_rr
         tp1_src = ["rr_projection"]
         notes.append(f"TP1 按最小盈亏比 {min_rr} 投影")
     tp2 = supports[1][0] if len(supports) > 1 and supports[1][0] < tp1 \
         else tp1 - risk
 
-    rr = _rr(entry_ref, stop, tp1)
+    rr = _rr(entry_lo, stop, tp1)
     return TradePlan(
         "short", valid=True,
         entry_zone=[_r(entry_lo), _r(entry_hi)], stop_loss=_r(stop),

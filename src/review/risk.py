@@ -62,12 +62,16 @@ def review_risk(plan, fusion, snapshot, cfg) -> RiskResult:
 
 
 def _risk_room(plan) -> float | None:
-    """入场到止损的距离（风险），用于判断目标空间是否过窄。"""
+    """入场到止损的距离（风险），用于判断目标空间是否过窄。
+
+    锚点与 gap 计算保持一致：多头都用上沿 entry_zone[1]，空头都用下沿 entry_zone[0]，
+    避免两量基准不一致导致提示误报（审查 #3）。
+    """
     if not plan.entry_zone or plan.stop_loss is None:
         return None
     if plan.direction == "long":
-        return plan.entry_zone[0] - plan.stop_loss
-    return plan.stop_loss - plan.entry_zone[1]
+        return plan.entry_zone[1] - plan.stop_loss
+    return plan.stop_loss - plan.entry_zone[0]
 
 
 def decide(fusion, validation, risk) -> tuple[str, list[str]]:

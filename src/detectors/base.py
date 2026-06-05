@@ -64,9 +64,13 @@ class Swing:
 
 def find_swings(klines: Sequence, lookback: int, confirm_delay: int
                 ) -> tuple[list[Swing], list[Swing]]:
-    """分形 swing：klines[i] 为窗口 [i-lookback, i+lookback] 内的极值。
+    """严格分形 swing：klines[i] 的 high **严格大于**两侧各 lookback 根（low 反之）。
 
-    仅返回已“可见”的 swing（i + confirm_delay <= 最后一根索引），实现 P0-3 防前视。
+    用严格不等号（> / <）而非 ==window_max，避免横盘/等高平台上把每根都误标为
+    swing（否则结构恒判 range、斐波锚点错位）。平台无单一极值时该窗口不产出 swing。
+
+    可见性：仅返回 i + max(lookback, confirm_delay) <= 最后一根索引 的 swing，
+    实现 P0-3 防前视（确认延迟取 lookback 与 confirm_delay 的较大者，偏保守）。
     返回 (highs, lows)，各按 idx 升序。
     """
     highs: list[Swing] = []
@@ -79,11 +83,11 @@ def find_swings(klines: Sequence, lookback: int, confirm_delay: int
     for i in range(lookback, n - lookback):
         if i + lag > last:                 # 尚未确认/可见 → 跳过（防前视）
             continue
-        window = klines[i - lookback:i + lookback + 1]
-        hi = max(k.high for k in window)
-        lo = min(k.low for k in window)
-        if klines[i].high == hi:
-            highs.append(Swing(i, klines[i].high, klines[i].ts, "high"))
-        if klines[i].low == lo:
-            lows.append(Swing(i, klines[i].low, klines[i].ts, "low"))
+        c = klines[i]
+        left = klines[i - lookback:i]
+        right = klines[i + 1:i + lookback + 1]
+        if all(c.high > k.high for k in left) and all(c.high > k.high for k in right):
+            highs.append(Swing(i, c.high, c.ts, "high"))
+        if all(c.low < k.low for k in left) and all(c.low < k.low for k in right):
+            lows.append(Swing(i, c.low, c.ts, "low"))
     return highs, lows
