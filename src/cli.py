@@ -142,28 +142,87 @@ def _run_probe_sources(args, cfg) -> int:
     report: dict[str, dict] = {}
 
     cg_key = cfg.secret("COINGLASS_API_KEY")
+    report["coinglass_long_short"] = {"key_present": bool(cg_key)}
     report["coinglass_etf"] = {"key_present": bool(cg_key)}
     if cg_key:
         try:
             from data.collectors.coinglass import CoinGlassClient
 
             with CoinGlassClient(api_key=cg_key, timeout=20.0) as cg:
-                rows = cg.bitcoin_etf_flows(ticker="IBIT", limit=3)
+                try:
+                    rows = cg.long_short_ratio(exchange="OKX", symbol="BTCUSDT",
+                                               interval="1h", limit=3)
+                    latest = rows[-1] if rows else None
+                    report["coinglass_long_short"].update({
+                        "ok": bool(rows),
+                        "rows": len(rows),
+                        "latest": ({
+                            "ts": latest.ts,
+                            "symbol": latest.symbol,
+                            "long_ratio": latest.long_ratio,
+                            "short_ratio": latest.short_ratio,
+                            "long_short_ratio": latest.long_short_ratio,
+                        } if latest else None),
+                    })
+                except Exception as e:  # noqa: BLE001
+                    report["coinglass_long_short"].update({
+                        "ok": False, "error": f"{type(e).__name__}: {e}",
+                    })
+
+                try:
+                    rows = cg.bitcoin_etf_flows(ticker="IBIT", limit=3)
+                    latest = rows[-1] if rows else None
+                    report["coinglass_etf"].update({
+                        "ok": bool(rows),
+                        "rows": len(rows),
+                        "latest": ({
+                            "ts": latest.ts,
+                            "ticker": latest.ticker,
+                            "net_flow_usd": latest.net_flow_usd,
+                            "total_value_usd": latest.total_value_usd,
+                        } if latest else None),
+                    })
+                except Exception as e:  # noqa: BLE001
+                    report["coinglass_etf"].update({
+                        "ok": False, "error": f"{type(e).__name__}: {e}",
+                    })
+        except Exception as e:  # noqa: BLE001
+            err = f"{type(e).__name__}: {e}"
+            report["coinglass_long_short"].update({"ok": False, "error": err})
+            report["coinglass_etf"].update({"ok": False, "error": err})
+    else:
+        report["coinglass_long_short"].update({"ok": False, "error": "missing COINGLASS_API_KEY"})
+        report["coinglass_etf"].update({"ok": False, "error": "missing COINGLASS_API_KEY"})
+
+    cq_key = cfg.secret("CRYPTOQUANT_API_KEY")
+    report["cryptoquant_exchange_netflow"] = {"key_present": bool(cq_key)}
+    if cq_key:
+        try:
+            from data.collectors.cryptoquant import CryptoQuantClient
+
+            with CryptoQuantClient(api_key=cq_key, timeout=20.0) as cq:
+                rows = cq.exchange_netflow(exchange="all_exchange", window="day", limit=3)
             latest = rows[-1] if rows else None
-            report["coinglass_etf"].update({
+            report["cryptoquant_exchange_netflow"].update({
                 "ok": bool(rows),
                 "rows": len(rows),
                 "latest": ({
                     "ts": latest.ts,
-                    "ticker": latest.ticker,
-                    "net_flow_usd": latest.net_flow_usd,
-                    "total_value_usd": latest.total_value_usd,
+                    "exchange": latest.exchange,
+                    "window": latest.window,
+                    "netflow_total": latest.netflow_total,
+                    "inflow_total": latest.inflow_total,
+                    "outflow_total": latest.outflow_total,
                 } if latest else None),
             })
         except Exception as e:  # noqa: BLE001
-            report["coinglass_etf"].update({"ok": False, "error": f"{type(e).__name__}: {e}"})
+            report["cryptoquant_exchange_netflow"].update({
+                "ok": False, "error": f"{type(e).__name__}: {e}",
+            })
     else:
-        report["coinglass_etf"].update({"ok": False, "error": "missing COINGLASS_API_KEY"})
+        report["cryptoquant_exchange_netflow"].update({
+            "ok": False, "error": "missing CRYPTOQUANT_API_KEY",
+        })
 
     try:
         from data.collectors.macro import YahooMacroClient, snapshot_to_source

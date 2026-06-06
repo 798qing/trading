@@ -87,6 +87,13 @@ def test_cryptoquant_rejects_missing_key():
         c.exchange_netflow()
 
 
+def test_cryptoquant_rejects_non_ascii_key():
+    c = CryptoQuantClient(api_key="abc（备注）",
+                          client=_http(lambda req: httpx.Response(200, json={})))
+    with pytest.raises(CryptoQuantError, match="非 ASCII"):
+        c.exchange_netflow()
+
+
 def test_yahoo_macro_rolling_linkage_parsing():
     btc_rets = [0.01 if i % 2 == 0 else -0.005 for i in range(32)] + [0.01, 0.01]
     dxy_rets = [-r for r in btc_rets]

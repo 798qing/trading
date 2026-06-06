@@ -41,6 +41,12 @@ class CryptoQuantClient:
     def _headers(self) -> dict[str, str]:
         if not self.api_key:
             raise CryptoQuantError("缺少 CRYPTOQUANT_API_KEY")
+        try:
+            self.api_key.encode("ascii")
+        except UnicodeEncodeError as e:
+            raise CryptoQuantError(
+                "CRYPTOQUANT_API_KEY 含非 ASCII 字符，请检查 secrets.env 是否混入中文注释/括号"
+            ) from e
         return {"Authorization": f"Bearer {self.api_key}"}
 
     def _get(self, path: str, params: dict[str, Any]) -> Any:

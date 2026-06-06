@@ -145,8 +145,21 @@ def _parse_secrets(path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, _, v = line.partition("=")
-        out[k.strip()] = v.strip()
+        out[k.strip()] = _clean_env_value(v)
     return out
+
+
+def _clean_env_value(value: str) -> str:
+    """去掉未加引号的行内注释，兼容 KEY=VALUE # comment。"""
+    text = value.strip()
+    if not text:
+        return ""
+    if text[0] in ("'", '"'):
+        quote = text[0]
+        end = text.find(quote, 1)
+        if end != -1:
+            return text[1:end]
+    return text.split("#", 1)[0].strip()
 
 
 def load_config(config_path: str | Path | None = None,

@@ -74,3 +74,17 @@ def test_scoring_change_moves_fingerprint(tmp_path):
 def test_fingerprint_deterministic():
     d = {"scoring": {"a": 1, "b": 2}, "display": {"x": 1}}
     assert fingerprint(d) == fingerprint({"display": {"x": 9}, "scoring": {"b": 2, "a": 1}})
+
+
+def test_secrets_strip_inline_comments(tmp_path):
+    sec = tmp_path / "secrets.env"
+    sec.write_text(
+        "EMPTY=        # placeholder 中文说明\n"
+        "TOKEN=abc123 # human note\n"
+        "HASHED='abc#123' # keep quoted hash\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(_write(tmp_path, _MINIMAL), secrets_path=sec)
+    assert cfg.secret("EMPTY") == ""
+    assert cfg.secret("TOKEN") == "abc123"
+    assert cfg.secret("HASHED") == "abc#123"
