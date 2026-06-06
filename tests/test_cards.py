@@ -50,6 +50,21 @@ def test_signal_card_has_plan_and_no_llm(dcfg, make_klines, make_snap):
     assert "阻力较近" in card                                      # 风险提示
 
 
+def test_signal_card_can_include_llm_block(dcfg, make_klines, make_snap):
+    a = _analysis(make_klines, make_snap, fusion=_signal_fusion(), plan=_valid_plan(),
+                  recommendation="signal")
+    a.llm_output = {
+        "status": "ok",
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "prompt_version": "full_analysis_v1",
+        "text": "综合判断：只引用既有交易计划，谨慎看多。",
+    }
+    card = cb.render(a, dcfg)
+    assert "LLM 综合解读（deepseek）" in card
+    assert "谨慎看多" in card
+
+
 def test_wait_card_lists_reasons_and_levels(dcfg, make_klines, make_snap):
     fusion = FusionResult(score=53, direction="bearish", recommendation="wait",
                           vetoed=False, radar={"structure": 4, "volume": 2})

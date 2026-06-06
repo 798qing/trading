@@ -6,6 +6,7 @@ config/secrets.env
 *.sqlite
 *.sqlite3
 data/*.db
+data/llm_state.json
 *.log
 
 # --- python ---

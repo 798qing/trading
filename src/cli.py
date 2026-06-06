@@ -7,6 +7,7 @@
     python -m cli                 # 默认卡（观望/信号），读热库
     python -m cli --quick         # 快报
     python -m cli --json          # 结构化 JSON（供 hermes 二次加工/LLM 解读）
+    python -m cli --llm           # full-analysis LLM 解读，失败自动降级
     python -m cli --refresh       # 强制 live 采集最新
     python -m cli --stats         # 已结算信号回测统计
     python -m cli --auto-weight   # 自动权重建议（只读，不改配置）
@@ -23,6 +24,7 @@ from common.config import load_config
 from data.collectors.okx import OKXClient, OKXError
 from data.snapshot import build_snapshot, has_klines, latest_sources
 from data.store import Store
+from llm.strategist import full_analysis
 from output import card_builder as cb
 from output.push_service import push_once
 from output.telegram import TelegramError
@@ -58,6 +60,7 @@ def _summary_json(a, cfg) -> dict:
         "plan": a.plan.to_dict(),
         "risk": {"warnings": a.risk.warnings,
                  "position_advice": a.risk.position_advice},
+        "llm_output": a.llm_output,
         "data_quality": a.snapshot.data_quality,
         "signals": {k: {"direction": v["direction"], "strength": v["strength"],
                         "events": v["events"]} for k, v in a.signals.items()},
@@ -130,11 +133,15 @@ def run(args) -> int:
         if live:
             with OKXClient(timeout=cfg.get("ops.llm.timeout_sec", 20)) as okx:
                 a = analyze(store, cfg, okx=okx)
+            if args.llm and not args.quick:
+                a.llm_output = full_analysis(a, cfg).to_dict()
             analysis_id = _persist(store, cfg, a, required=args.push)
         else:
             # 热路径：用库里最新数据 + 最近快照的外部源重建，本地重算
             snap = build_snapshot(store, cfg, latest_sources(store), persist=False)
             a = analyze(store, cfg, snapshot=snap)
+            if args.llm and not args.quick:
+                a.llm_output = full_analysis(a, cfg).to_dict()
             if args.push:
                 analysis_id = _persist(store, cfg, a, required=True)
         if not args.json:
@@ -170,6 +177,8 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="trading-agent", description="BTC 分析卡片")
     p.add_argument("--quick", action="store_true", help="快报模式")
     p.add_argument("--json", action="store_true", help="输出结构化 JSON")
+    p.add_argument("--llm", action="store_true",
+                   help="启用 full-analysis LLM 综合解读；失败自动降级为纯检测器")
     p.add_argument("--refresh", action="store_true", help="强制 live 采集最新")
     p.add_argument("--push", action="store_true", help="按阶段2推送规则发送 Telegram")
     p.add_argument("--stats", action="store_true", help="输出已结算信号回测统计")

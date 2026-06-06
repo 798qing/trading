@@ -12,6 +12,7 @@
 | `/btc`  | 默认卡（观望/信号），读热库 ~60ms | `cli` |
 | `/btcq` | 快报 | `cli --quick` |
 | `/btcr` | 强制 live 刷新（~2s） | `cli --refresh` |
+| `/btcl` | full-analysis LLM 综合解读；失败自动降级 | `cli --llm` |
 | `/btch` | 健康检查（热库/结算/推送） | `cli --health` |
 | `/btcs` | 7 日结算绩效统计 | `cli --stats --days 7` |
 | `/btcw` | 30 日自动权重建议（只读） | `cli --auto-weight --days 30` |
@@ -20,15 +21,16 @@
 ```
 PYTHONPATH=/Users/lin/trading-agent/src /Users/lin/trading-agent/.venv/bin/python -m cli [...]
 ```
-exec 不传用户参数,故 quick/refresh 各设独立命令。环境变量被 hermes 自动脱敏,
-CLI 热路径不需要任何 key(只读库),--refresh 用 OKX 公开接口(免 key)。
+exec 不传用户参数,故 quick/refresh/llm 各设独立命令。环境变量被 hermes 自动脱敏,
+CLI 热路径不需要任何 key(只读库),--refresh 用 OKX 公开接口(免 key)。`/btcl`
+显式调用仓库内 provider router:DeepSeek 主 + OpenAI-compatible 备用抽象,全失败则 naked-chart。
 
 ## 2. 自然语言解读（skill，走 agent loop + DeepSeek）
 
 `~/.hermes/skills/trading/btc-analysis/SKILL.md`:用户问"BTC 怎么样"时,
 hermes 跑 `cli --json` 拿结构化包,用自己的 DeepSeek 解读,严守边界
-(价格只引用 JSON、不下单、仓位离散措辞)。这就是架构里的"LLM 策略师"(阶段3),
-复用 hermes 已配的 DeepSeek,无需另造 LLM 层。
+(价格只引用 JSON、不下单、仓位离散措辞)。仓库内也提供 `cli --llm` 的同类
+full-analysis 支线,用于 `/btcl` 和本地验证；默认 `/btc` 仍保持裸检测器秒回。
 
 ## 生效 / 验证
 

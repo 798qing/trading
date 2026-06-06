@@ -1,4 +1,5 @@
 """analyze.py — 流水线编排 + 大周期判向接线 + 落库。"""
+import json
 import textwrap
 
 import pytest
@@ -69,6 +70,30 @@ def test_analyze_runs_and_persists(tmp_path):
         "SELECT COUNT(*) FROM signals WHERE snapshot_id=?", (snap.snapshot_id,)
     ).fetchone()[0]
     assert n_sig == 10
+    store.close()
+
+
+def test_persist_records_llm_output_and_prompt_version(tmp_path):
+    cfg = _cfg(tmp_path)
+    store = Store(tmp_path / "t.db"); store.init_db()
+    now = 1_780_000_000
+    _seed(store, "15m", now, n=80)
+    snap = build_snapshot(store, cfg, _aux(now), now=now, persist=True)
+    a = analyze(store, cfg, snapshot=snap)
+    a.llm_output = {
+        "status": "ok",
+        "prompt_version": "full_analysis_v1",
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "text": "综合解读",
+        "error": None,
+    }
+
+    aid = persist(store, cfg, a)
+    row = dict(store.conn.execute("SELECT * FROM analyses WHERE id=?", (aid,)).fetchone())
+
+    assert row["prompt_version"] == "full_analysis_v1"
+    assert json.loads(row["llm_output"])["text"] == "综合解读"
     store.close()
 
 

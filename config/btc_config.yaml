@@ -129,11 +129,19 @@ ops:
     dedup_window_sec: 60        # 同指令 60s 去重
     queue_max: 3
   llm:
-    provider: "deepseek"        # 无备用（D15 简化：deepseek → naked-chart）
+    provider: "deepseek"        # 主 provider；OpenAI-compatible chat completions
+    backup_provider: ""         # 可填 qwen/openai 等；全失败 → naked-chart 兜底
     prompt_version: "naked_chart_v1"
+    full_prompt_version: "full_analysis_v1"
     timeout_sec: 20
     fail_pause_after: 3         # 连续 3 次失败 → 暂停 30min
     fail_pause_min: 30
+    state_path: "data/llm_state.json"
+    providers:
+      deepseek:
+        base_url: "https://api.deepseek.com"
+        model: "deepseek-chat"
+        api_key_secret: "DEEPSEEK_API_KEY"
   auto_weight:
     min_settled_signals: 30     # P0-6/D13：样本不足只告警，不改权重
   config_watcher_interval_sec: 30

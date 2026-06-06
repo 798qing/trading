@@ -58,6 +58,19 @@ def _data_warn(a) -> str:
     return ""
 
 
+def _llm_block(a) -> list[str]:
+    llm = getattr(a, "llm_output", None)
+    if not isinstance(llm, dict):
+        return ["⚠️ 纯检测器结论（无 LLM 综合解读）"]
+    if llm.get("status") != "ok":
+        return ["⚠️ LLM 不可用，以下为纯检测器结论"]
+    text = str(llm.get("text") or "").strip()
+    if not text:
+        return ["⚠️ LLM 返回为空，以下为纯检测器结论"]
+    provider = llm.get("provider") or "llm"
+    return [f"🧠 LLM 综合解读（{provider}）", text]
+
+
 def build_signal_card(a, cfg) -> str:
     """信号卡（评分≥阈值）。阶段1无 LLM → 降级标准卡（D15）。"""
     f, p = a.fusion, a.plan
@@ -72,7 +85,7 @@ def build_signal_card(a, cfg) -> str:
         f"{emoji} BTC {_DIR_TEXT.get(f.direction,'')}信号 · 评分 {f.score}/100",
         "━━━━━━━━━━━━━━━━━━━━",
         f"价格 ${_price(price)}",
-        "⚠️ 纯检测器结论（无 LLM 综合解读）",
+        *_llm_block(a),
         "",
         "📊 信号雷达",
         _radar_block(f.radar),
@@ -146,6 +159,9 @@ def build_wait_card(a, cfg) -> str:
     w = _data_warn(a)
     if w:
         lines.append(w)
+    llm = _llm_block(a)
+    if llm and "LLM" in llm[0]:
+        lines += ["", *llm]
     return "\n".join(lines)
 
 

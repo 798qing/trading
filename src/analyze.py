@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 
 from data.snapshot import collect_and_freeze
 from detectors.adx import ADXDetector
@@ -39,6 +40,7 @@ class Analysis:
     risk: RiskResult
     recommendation: str            # 最终建议（validate/risk 降级后）
     reasons: list[str]
+    llm_output: dict | None = None
 
 
 def _htf_directions(snapshot, cfg) -> dict[str, str]:
@@ -86,9 +88,18 @@ def persist(store, cfg, a: Analysis) -> int:
                           module=module, direction=sig.get("direction"),
                           strength=sig.get("strength"),
                           confidence=sig.get("confidence"), details=sig.get("details"))
+    llm_payload = a.llm_output
+    prompt_version = (
+        llm_payload.get("prompt_version")
+        if isinstance(llm_payload, dict) and llm_payload.get("prompt_version")
+        else cfg.prompt_version
+    )
     return store.save_analysis(
         ts=snap.analysis_ts, snapshot_id=snap.snapshot_id, symbol=snap.symbol,
         score=a.fusion.score, direction=a.fusion.direction,
-        plan=a.plan.to_dict(), llm_output=None, card_text=None,
-        prompt_version=cfg.prompt_version, config_version=cfg.version,
+        plan=a.plan.to_dict(),
+        llm_output=(json.dumps(llm_payload, ensure_ascii=False)
+                    if llm_payload is not None else None),
+        card_text=None,
+        prompt_version=prompt_version, config_version=cfg.version,
     )
