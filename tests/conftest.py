@@ -13,7 +13,8 @@ meta: {label: t, symbol: BTC-USDT-SWAP}
 timeframes: {all: ["15m"], primary: "15m", higher: [], min_klines: 300}
 scoring: {push_threshold: 65, standard_card_score: 60, conflict_score_cap: 55}
 plan_builder: {entry_max_deviation_pct: 2.0, stop_min_pct: 0.5, stop_max_pct: 5.0,
-               min_risk_reward: 1.5, atr_period: 14, signal_ttl_klines: 4}
+               min_risk_reward: 1.5, atr_period: 14, signal_ttl_klines: 4,
+               backtest_sample_min_score: 40}
 hard_constraints: {contextual_veto: {adx_min: 18}}
 detectors:
   structure: {swing_lookback: 5, swing_confirm_delay: 2}

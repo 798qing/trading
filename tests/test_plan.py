@@ -4,8 +4,9 @@ from types import SimpleNamespace
 from plan.plan_builder import build_plan
 
 
-def _fusion(direction, recommendation="signal"):
-    return SimpleNamespace(direction=direction, recommendation=recommendation)
+def _fusion(direction, recommendation="signal", score=72, vetoed=False):
+    return SimpleNamespace(direction=direction, recommendation=recommendation,
+                           score=score, vetoed=vetoed)
 
 
 def _klines(make_klines, n=30, base=100.0):
@@ -72,6 +73,33 @@ def test_wait_returns_key_levels_only(dcfg, make_klines, make_snap):
                       _signals(105.0, 95.0), dcfg)
     assert plan.direction == "none" and not plan.valid
     assert plan.entry_zone is None
+    assert plan.key_levels["resistances"] or plan.key_levels["supports"]
+
+
+def test_directional_wait_can_build_backtest_sample_plan(dcfg, make_klines, make_snap):
+    snap = make_snap(sources={"mark": {"price": 100.0, "status": "fresh"}},
+                     **{"15m": _klines(make_klines)})
+    plan = build_plan(_fusion("bearish", recommendation="wait", score=48), snap,
+                      _signals(105.0, 95.0), dcfg)
+    assert plan.direction == "short" and plan.valid
+    assert any("观望采样计划" in note for note in plan.notes)
+
+
+def test_low_score_wait_keeps_key_levels_only(dcfg, make_klines, make_snap):
+    snap = make_snap(sources={"mark": {"price": 100.0, "status": "fresh"}},
+                     **{"15m": _klines(make_klines)})
+    plan = build_plan(_fusion("bullish", recommendation="wait", score=23), snap,
+                      _signals(105.0, 95.0), dcfg)
+    assert plan.direction == "none" and not plan.valid
+    assert plan.key_levels["resistances"] or plan.key_levels["supports"]
+
+
+def test_vetoed_wait_keeps_key_levels_only(dcfg, make_klines, make_snap):
+    snap = make_snap(sources={"mark": {"price": 100.0, "status": "fresh"}},
+                     **{"15m": _klines(make_klines)})
+    plan = build_plan(_fusion("bullish", recommendation="wait", score=58, vetoed=True),
+                      snap, _signals(105.0, 95.0), dcfg)
+    assert plan.direction == "none" and not plan.valid
     assert plan.key_levels["resistances"] or plan.key_levels["supports"]
 
 

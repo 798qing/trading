@@ -4,7 +4,9 @@
 输出：入场区间 / 止损 / 目标 / 失效条件，每个价格附 source_levels 标签可追溯。
 LLM 不参与任何价格生成；validate.py 再做数值校验与降级。
 
-方向为 neutral / 观望时仍输出 key_levels（关键支撑阻力），供观望卡使用。
+方向为 neutral / veto 观望时仍输出 key_levels（关键支撑阻力），供观望卡使用。
+分数低于正式信号阈值、但达到 backtest_sample_min_score 的非 veto 方向性
+观望，也会生成纸面计划，供回测闭环采样；最终推送仍由 recommendation 控制。
 """
 from __future__ import annotations
 
@@ -89,9 +91,22 @@ def build_plan(fusion, snapshot, signals: dict, cfg) -> TradePlan:
     }
 
     direction = fusion.direction
-    # 无方向 / 观望 / 被否决：只给关键位，不出可执行计划
-    if direction not in ("bullish", "bearish") or fusion.recommendation == "wait":
-        reason = "veto/观望" if fusion.recommendation == "wait" else "无方向"
+    sample_min = pb.get("backtest_sample_min_score")
+    score = getattr(fusion, "score", 0) or 0
+    sample_plan = (
+        fusion.recommendation == "wait"
+        and direction in ("bullish", "bearish")
+        and not getattr(fusion, "vetoed", False)
+        and sample_min is not None
+        and score >= sample_min
+    )
+    # 无方向 / veto / 低于采样下限的观望：只给关键位，不出可执行计划
+    if direction not in ("bullish", "bearish") or (
+        fusion.recommendation == "wait" and not sample_plan
+    ):
+        reason = "无方向"
+        if fusion.recommendation == "wait":
+            reason = "veto/观望"
         return TradePlan("none", valid=False, key_levels=key_levels,
                          notes=[f"不出计划：{reason}"])
 
@@ -107,6 +122,11 @@ def build_plan(fusion, snapshot, signals: dict, cfg) -> TradePlan:
         plan = _build_short(ref, atr_val, resistances, supports, signals, breakout,
                             stop_min, stop_max, min_rr, primary)
     plan.key_levels = key_levels
+    if sample_plan:
+        plan.notes.append(
+            f"观望采样计划：score={score} < signal_threshold，"
+            "仅用于回测闭环，不触发推送"
+        )
     return plan
 
 

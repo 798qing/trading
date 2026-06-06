@@ -46,6 +46,15 @@ def test_stop_bounds_must_be_ordered(tmp_path):
         load_config(_write(tmp_path, bad))
 
 
+def test_backtest_sample_min_score_within_standard_card_score(tmp_path):
+    body = _MINIMAL.replace(
+        "min_risk_reward: 1.5",
+        "min_risk_reward: 1.5, backtest_sample_min_score: 61",
+    )
+    with pytest.raises(ConfigError, match="backtest_sample_min_score"):
+        load_config(_write(tmp_path, body))
+
+
 def test_display_ops_excluded_from_fingerprint(tmp_path):
     cfg_a = load_config(_write(tmp_path, _MINIMAL))
     # 只改 display/ops，指纹应不变

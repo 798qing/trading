@@ -179,7 +179,7 @@ def build_quick_card(a, cfg) -> str:
         f"${_price(price)}",
         f"阻力 {res}  支撑 {sup}",
     ]
-    if p.valid:
+    if a.recommendation == "signal" and p.valid:
         lines.append(f"入场 ${_price(p.entry_zone[0])}-${_price(p.entry_zone[1])} "
                      f"止损 ${_price(p.stop_loss)} 目标 ${_price(p.targets[0])}/${_price(p.targets[1])}")
     lines.append(f"⏰{_ttl(cfg)}")

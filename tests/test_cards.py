@@ -89,6 +89,20 @@ def test_quick_card_is_compact(dcfg, make_klines, make_snap):
     assert card.count("\n") <= 5                     # 极简单行密排
 
 
+def test_quick_card_hides_wait_sample_plan(dcfg, make_klines, make_snap):
+    fusion = FusionResult(score=48, direction="bearish", recommendation="wait",
+                          vetoed=False, radar={"structure": 4, "volume": 2})
+    plan = TradePlan("short", True, entry_zone=[101.0, 102.0], stop_loss=104.0,
+                     targets=[98.0, 96.0],
+                     key_levels={"resistances": [[102.0, "swing_high"]],
+                                 "supports": [[98.0, "swing_low"]]})
+    a = _analysis(make_klines, make_snap, fusion=fusion, plan=plan,
+                  recommendation="wait", reasons=["综合评分不足"])
+    card = cb.render(a, dcfg, quick=True)
+    assert "快报" in card
+    assert "入场" not in card and "止损" not in card
+
+
 def test_render_picks_wait_when_plan_invalid(dcfg, make_klines, make_snap):
     # recommendation=signal 但 plan 无效 → 仍走观望卡（防止出空计划卡）
     a = _analysis(make_klines, make_snap, fusion=_signal_fusion(),

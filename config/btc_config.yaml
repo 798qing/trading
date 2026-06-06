@@ -86,6 +86,7 @@ plan_builder:
   min_risk_reward: 1.5          # 盈亏比 ≥ 1.5:1
   atr_period: 14
   signal_ttl_klines: 4          # 信号有效期 = 4 根 15m（=1h，架构十六节）
+  backtest_sample_min_score: 40 # 方向性观望达到此分数时生成纸面计划，仅供回测采样
 
 # --- 交易生命周期成本（回测/盈亏比计算，纳入指纹）-------------------------
 costs:

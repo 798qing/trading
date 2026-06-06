@@ -118,6 +118,17 @@ def _assert_invariants(data: dict[str, Any]) -> None:
         rr = pb.get("min_risk_reward")
         if rr is not None and rr <= 0:
             raise ConfigError(f"断言失败：min_risk_reward({rr}) 必须 > 0")
+        sample_min = pb.get("backtest_sample_min_score")
+        if sample_min is not None:
+            if not isinstance(sample_min, (int, float)):
+                raise ConfigError(
+                    f"断言失败：backtest_sample_min_score({sample_min}) 必须是数值"
+                )
+            if not (0 <= sample_min <= std):
+                raise ConfigError(
+                    "断言失败：backtest_sample_min_score"
+                    f"({sample_min}) 应在 [0, standard_card_score({std})] 内"
+                )
 
     adx_min = data.get("hard_constraints", {}).get("contextual_veto", {}).get("adx_min")
     if adx_min is not None and adx_min < 0:
