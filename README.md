@@ -62,3 +62,4 @@ bot.py / main.py
 - Hermes quick commands：`/btc` 默认裸检测器卡、`/btcq` 快报、`/btcr` 强制刷新、`/btcl` LLM 综合解读、`/btch` 健康检查、`/btchist` 最近流水、`/btcs` 7日统计、`/btcw` 30日权重建议。
 - Stage 3 auto-weight：`cli --auto-weight` 只输出建议；样本少于 30 条已结算信号时只告警不改权重。
 - Stage 3 full-analysis：默认 `/btc`/`cli` 仍走快路径；显式 `--llm` 才调用 provider router，LLM 不可用时卡片保留纯检测器结论。
+- Stage 3 因子增强：CoinGlass 多空比已拆成 `long_short`（温和仓位倾斜，低权重）与 `liquidation`（极端拥挤反向风险），避免同源数据重复放大。

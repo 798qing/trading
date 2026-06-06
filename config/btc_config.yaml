@@ -48,6 +48,7 @@ fusion:
     adx: 0.5
     vol_profile: 1.2
     liquidation: 0.8
+    long_short: 0.4              # 阶段3：温和仓位倾斜；极端拥挤交给 liquidation
     oi_funding: 1.0             # 阶段2接入评分（因子P0-①）
     basis: 0.8                  # 阶段2（因子P0-②）
     onchain: 0.7                # 阶段3：交易所净流入/净流出
@@ -119,6 +120,16 @@ detectors:
     crowded_long_ratio: 1.5     # 多空比高 → 多头拥挤，反向偏空
     crowded_short_ratio: 0.67   # 多空比低 → 空头拥挤，反向偏多
     crowded_account_ratio: 0.62 # long/short account 单边占比拥挤阈值
+  long_short:
+    bullish_ratio: 1.1          # 温和多头倾斜 → 顺势偏多背景
+    bearish_ratio: 0.91         # 温和空头倾斜 → 顺势偏空背景
+    strong_bullish_ratio: 1.25
+    strong_bearish_ratio: 0.8
+    account_bias_ratio: 0.54
+    strong_account_bias_ratio: 0.58
+    extreme_long_ratio: 1.5     # 到极端区间时由 liquidation 反向处理
+    extreme_short_ratio: 0.67
+    extreme_account_ratio: 0.62
   onchain:
     netflow_btc_threshold: 100  # 交易所净流低于此值视为噪声
     netflow_btc_strong: 500

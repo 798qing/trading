@@ -14,6 +14,7 @@ from detectors.basis import BasisDetector
 from detectors.candle import CandleDetector
 from detectors.fib import FibDetector
 from detectors.liquidation import LiquidationDetector
+from detectors.long_short import LongShortDetector
 from detectors.macro import MacroDetector
 from detectors.macd import MACDDetector
 from detectors.oi_funding import OIFundingDetector
@@ -32,7 +33,8 @@ from review.validate import ValidationResult, validate_plan
 _PRIMARY_DETECTORS = (StructureDetector, VolumeDetector, ADXDetector, FibDetector,
                       CandleDetector, MACDDetector, RSIDetector, WyckoffDetector,
                       OIFundingDetector, BasisDetector, LiquidationDetector,
-                      OnchainDetector, MacroDetector, VolRegimeDetector)
+                      LongShortDetector, OnchainDetector, MacroDetector,
+                      VolRegimeDetector)
 
 
 @dataclass

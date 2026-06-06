@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from detectors.basis import BasisDetector
 from detectors.liquidation import LiquidationDetector
+from detectors.long_short import LongShortDetector
 from detectors.macro import MacroDetector
 from detectors.oi_funding import OIFundingDetector
 from detectors.onchain import OnchainDetector
@@ -84,6 +85,32 @@ def test_liquidation_long_crowding_tilts_bearish(dcfg, make_klines):
 def test_liquidation_missing_source_is_neutral(dcfg, make_klines):
     snap = _snap(make_klines, _FLAT, {})
     r = LiquidationDetector().detect(snap, dcfg)
+    assert r.direction == "neutral"
+    assert r.warnings
+
+
+def test_long_short_moderate_long_bias_is_bullish(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT,
+                 {"long_short": {"long_ratio": 0.57, "short_ratio": 0.43,
+                                  "long_short_ratio": 1.32, "status": "fresh"}})
+    r = LongShortDetector().detect(snap, dcfg)
+    assert r.direction == "bullish"
+    assert "long_bias" in r.events
+
+
+def test_long_short_extreme_deferred_to_liquidation(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT,
+                 {"long_short": {"long_ratio": 0.66, "short_ratio": 0.34,
+                                  "long_short_ratio": 1.94, "status": "fresh"}})
+    r = LongShortDetector().detect(snap, dcfg)
+    assert r.direction == "neutral"
+    assert "long_bias_extreme" in r.events
+    assert "deferred_to_liquidation" in r.events
+
+
+def test_long_short_missing_source_is_neutral(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT, {})
+    r = LongShortDetector().detect(snap, dcfg)
     assert r.direction == "neutral"
     assert r.warnings
 
