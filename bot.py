@@ -1,8 +1,7 @@
-"""Telegram 入口：/btc → 出卡（阶段1）。
+"""Telegram 入口：/btc → 出卡。
 
-纯分析不下单（D1）。/btc 跑一次完整分析并回卡；/btc --quick 出快报。
+纯分析不下单（D1）。/btc 默认带 LLM 综合解读；/btc --quick 出快报。
 只响应配置中的 TELEGRAM_CHAT_ID（单用户），其余消息忽略。
-LLM 尚未接入（阶段3），当前信号卡为纯检测器结论。
 """
 from __future__ import annotations
 
@@ -21,6 +20,7 @@ from analyze import analyze, persist                            # noqa: E402
 from common.config import load_config                           # noqa: E402
 from data.collectors.okx import OKXClient, OKXError             # noqa: E402
 from data.store import Store                                    # noqa: E402
+from llm.strategist import full_analysis                         # noqa: E402
 from output import card_builder as cb                           # noqa: E402
 
 logging.basicConfig(level=logging.INFO,
@@ -28,11 +28,13 @@ logging.basicConfig(level=logging.INFO,
 log = logging.getLogger("bot")
 
 
-def _run_analysis(app_state: dict, quick: bool) -> str:
+def _run_analysis(app_state: dict, quick: bool, llm: bool = True) -> str:
     """同步跑一次分析并落库，返回渲染好的卡片文本。"""
     cfg, store = app_state["cfg"], app_state["store"]
     with OKXClient(timeout=cfg.get("ops.llm.timeout_sec", 20)) as okx:
         a = analyze(store, cfg, okx=okx)
+    if llm and not quick:
+        a.llm_output = full_analysis(a, cfg).to_dict()
     try:
         persist(store, cfg, a)
     except Exception:                       # 落库失败不应阻塞回卡
@@ -48,12 +50,14 @@ async def btc_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         log.warning("忽略非授权 chat_id=%s", chat_id)
         return
 
-    quick = any(a in ("--quick", "-q") for a in (ctx.args or []))
+    args = ctx.args or []
+    quick = any(a in ("--quick", "-q") for a in args)
+    llm = not any(a in ("--no-llm", "--naked") for a in args)
     await ctx.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     try:
         # 阻塞的网络/计算放线程池，避免卡住 event loop
         import asyncio
-        card = await asyncio.to_thread(_run_analysis, state, quick)
+        card = await asyncio.to_thread(_run_analysis, state, quick, llm)
     except OKXError as e:
         card = f"⚠️ 数据源不可用，暂时无法分析\n{e}"
     except Exception as e:                  # noqa: BLE001
