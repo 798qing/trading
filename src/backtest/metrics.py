@@ -9,9 +9,30 @@ import json
 import math
 import re
 from dataclasses import asdict, dataclass
-from typing import Iterable
+from typing import Any, Iterable
 
 _PNL_RE = re.compile(r"pnl_net=([-+]?\d+(?:\.\d+)?)%")
+_REGIME_LABELS = {
+    "trend": "趋势",
+    "range": "震荡",
+    "transition": "过渡",
+    "unknown": "未知",
+}
+_REGIME_ALIASES = {
+    "trend": "trend",
+    "trending": "trend",
+    "strong_trend": "trend",
+    "趋势": "trend",
+    "range": "range",
+    "ranging": "range",
+    "sideways": "range",
+    "oscillation": "range",
+    "震荡": "range",
+    "transition": "transition",
+    "transitioning": "transition",
+    "transitional": "transition",
+    "过渡": "transition",
+}
 
 
 @dataclass(frozen=True)
@@ -134,22 +155,144 @@ def grouped_metrics(rows: Iterable) -> list[Metrics]:
     ]
 
 
+def _safe_json(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if not value or not isinstance(value, str):
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _normalize_regime(value: str | None) -> str | None:
+    if not value:
+        return None
+    return _REGIME_ALIASES.get(str(value).strip().lower())
+
+
+def _strength_at_least(value: Any, threshold: int) -> bool:
+    if value is None:
+        return True
+    try:
+        return int(value) >= threshold
+    except (TypeError, ValueError):
+        return False
+
+
+def infer_market_regime(signals: Iterable[dict[str, Any]],
+                        market_state: str | None = None) -> str:
+    """从冻结快照的 market_state/signals 推断回测行情桶。"""
+    normalized = _normalize_regime(market_state)
+    if normalized:
+        return normalized
+
+    by_module = {str(s.get("module")): s for s in signals if s.get("module")}
+    adx_details = _safe_json(by_module.get("adx", {}).get("details"))
+    structure_details = _safe_json(by_module.get("structure", {}).get("details"))
+    vol_details = _safe_json(by_module.get("vol_regime", {}).get("details"))
+
+    adx_class = str(adx_details.get("classification") or "").lower()
+    structure = str(structure_details.get("structure") or "").lower()
+    vol_regime = str(vol_details.get("regime") or "").lower()
+    directions = {
+        s.get("direction")
+        for s in signals
+        if s.get("direction") in {"bullish", "bearish"}
+        and _strength_at_least(s.get("strength"), 3)
+    }
+
+    if vol_regime == "high_vol" and (
+        len(directions) > 1 or adx_class == "no_trend" or structure == "range"
+    ):
+        return "transition"
+    if adx_class in {"strong", "trending"} or structure in {"uptrend", "downtrend"}:
+        return "trend"
+    if adx_class == "no_trend" or structure == "range":
+        return "range"
+    if vol_regime == "high_vol":
+        return "transition"
+    return "unknown"
+
+
+def _fetch_regime_context(store, snapshot_ids: Iterable[str]) -> dict[str, dict]:
+    ids = sorted({sid for sid in snapshot_ids if sid})
+    ctx = {sid: {"market_state": None, "signals": []} for sid in ids}
+    if not ids:
+        return ctx
+
+    chunk_size = 900
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        for row in store.conn.execute(
+            f"SELECT snapshot_id, market_state FROM snapshots "
+            f"WHERE snapshot_id IN ({placeholders})",
+            chunk,
+        ).fetchall():
+            ctx[row["snapshot_id"]]["market_state"] = row["market_state"]
+        for row in store.conn.execute(
+            f"SELECT snapshot_id, module, direction, strength, confidence, details "
+            f"FROM signals WHERE snapshot_id IN ({placeholders})",
+            chunk,
+        ).fetchall():
+            ctx[row["snapshot_id"]]["signals"].append({
+                "module": row["module"],
+                "direction": row["direction"],
+                "strength": row["strength"],
+                "confidence": row["confidence"],
+                "details": _safe_json(row["details"]),
+            })
+    return ctx
+
+
+def _attach_market_regimes(store, rows: Iterable) -> list[dict[str, Any]]:
+    enriched = [dict(r) for r in rows]
+    ctx = _fetch_regime_context(store, (r.get("snapshot_id") for r in enriched))
+    for row in enriched:
+        snap_ctx = ctx.get(row.get("snapshot_id"), {})
+        row["_market_regime"] = infer_market_regime(
+            snap_ctx.get("signals", []),
+            snap_ctx.get("market_state"),
+        )
+    return enriched
+
+
+def regime_metrics(rows: Iterable) -> list[dict[str, Any]]:
+    groups: dict[str, list] = {}
+    for r in rows:
+        groups.setdefault(r.get("_market_regime") or "unknown", []).append(r)
+
+    order = {"trend": 0, "range": 1, "transition": 2, "unknown": 3}
+    result: list[dict[str, Any]] = []
+    for regime in sorted(groups, key=lambda x: (order.get(x, 99), x)):
+        d = compute_metrics(groups[regime]).to_dict()
+        d["market_regime"] = regime
+        d["market_regime_label"] = _REGIME_LABELS.get(regime, regime)
+        result.append(d)
+    return result
+
+
 def metrics_report(store, cfg, *, days: int | None = 30, now: int | None = None
                    ) -> dict:
-    """读取已结算 analyses，返回 overall + 按版本分组的报告。"""
+    """读取已结算 analyses，返回 overall + 版本/行情类型分组报告。"""
     since = None
     if days is not None:
         from common import clock
 
         n = clock.now_ts() if now is None else now
         since = n - days * 86400
-    rows = store.settled_analyses(since_ts=since, symbol=cfg.require("meta.symbol"))
+    raw_rows = store.settled_analyses(since_ts=since, symbol=cfg.require("meta.symbol"))
+    rows = _attach_market_regimes(store, raw_rows)
     overall = compute_metrics(rows)
     return {
         "symbol": cfg.require("meta.symbol"),
         "days": days,
         "overall": overall.to_dict(),
         "groups": [m.to_dict() for m in grouped_metrics(rows)],
+        "regimes": regime_metrics(rows),
     }
 
 
@@ -181,6 +324,16 @@ def render_report(report: dict) -> str:
             f"- prompt={g['prompt_version']} cfg={g['config_version']} "
             f"n={g['entered']}/{g['total']} win="
             f"{_pct(None if g['win_rate'] is None else g['win_rate'] * 100)} "
+            f"EV={_pct(g['ev_pct'])} MDD={_pct(g['max_drawdown_pct'])} "
+            f"Sortino={_num(g['sortino'])}"
+        )
+    if report.get("regimes"):
+        lines.append("by regime:")
+    for g in report.get("regimes", []):
+        label = g.get("market_regime_label") or g.get("market_regime")
+        lines.append(
+            f"- {label}({g['market_regime']}): n={g['entered']}/{g['total']} "
+            f"win={_pct(None if g['win_rate'] is None else g['win_rate'] * 100)} "
             f"EV={_pct(g['ev_pct'])} MDD={_pct(g['max_drawdown_pct'])} "
             f"Sortino={_num(g['sortino'])}"
         )

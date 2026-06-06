@@ -18,9 +18,13 @@ def _store(tmp_path):
     return s
 
 
-def _analysis(store, *, ts=1000, prompt="p1", cfg="cfg_a"):
+def _snapshot_id(ts=1000, prompt="p1", cfg="cfg_a"):
+    return f"snap-{ts}-{prompt}-{cfg}"
+
+
+def _analysis(store, *, ts=1000, prompt="p1", cfg="cfg_a", market_state=None):
     sid = f"snap-{ts}-{prompt}-{cfg}"
-    store.save_snapshot(sid, ts, "BTC-USDT-SWAP", None, {}, {}, cfg)
+    store.save_snapshot(sid, ts, "BTC-USDT-SWAP", market_state, {}, {}, cfg)
     return store.save_analysis(
         ts=ts, snapshot_id=sid, symbol="BTC-USDT-SWAP", score=70,
         direction="bullish", plan={"valid": True}, llm_output=None,
@@ -97,4 +101,89 @@ def test_metrics_report_filters_days_and_renders_empty(tmp_path):
     empty = metrics_report(s, _Cfg(), days=0, now=now)
     assert empty["overall"]["prompt_version"] == "none"
     assert "total=0" in render_report(empty)
+    s.close()
+
+
+def test_metrics_report_groups_by_market_regime(tmp_path):
+    s = _store(tmp_path)
+    trend = _analysis(s, ts=1000)
+    range_ = _analysis(s, ts=2000)
+    transition = _analysis(s, ts=3000)
+
+    s.save_signal(
+        ts=1000,
+        snapshot_id=_snapshot_id(1000),
+        module="adx",
+        direction="neutral",
+        strength=5,
+        confidence="high",
+        details={"classification": "strong"},
+    )
+    s.save_signal(
+        ts=1000,
+        snapshot_id=_snapshot_id(1000),
+        module="structure",
+        direction="bullish",
+        strength=4,
+        confidence="high",
+        details={"structure": "uptrend"},
+    )
+    s.save_signal(
+        ts=2000,
+        snapshot_id=_snapshot_id(2000),
+        module="adx",
+        direction="neutral",
+        strength=1,
+        confidence="high",
+        details={"classification": "no_trend"},
+    )
+    s.save_signal(
+        ts=3000,
+        snapshot_id=_snapshot_id(3000),
+        module="vol_regime",
+        direction="neutral",
+        strength=5,
+        confidence="high",
+        details={"regime": "high_vol"},
+    )
+    s.save_signal(
+        ts=3000,
+        snapshot_id=_snapshot_id(3000),
+        module="structure",
+        direction="bearish",
+        strength=4,
+        confidence="high",
+        details={"structure": "range"},
+    )
+    s.save_signal(
+        ts=3000,
+        snapshot_id=_snapshot_id(3000),
+        module="macd",
+        direction="bullish",
+        strength=4,
+        confidence="medium",
+        details={},
+    )
+
+    s.settle_analysis(trend, outcome="correct", entry_hit=1, exit_reason="tp_hit",
+                      settled_ts=4000, outcome_note="pnl_net=2.000%")
+    s.settle_analysis(range_, outcome="wrong", entry_hit=1, exit_reason="sl_hit",
+                      settled_ts=4000, outcome_note="pnl_net=-1.000%")
+    s.settle_analysis(transition, outcome="partial", entry_hit=1,
+                      exit_reason="expired", settled_ts=4000,
+                      outcome_note="pnl_net=0.500%")
+
+    report = metrics_report(s, _Cfg(), days=None)
+    regimes = {r["market_regime"]: r for r in report["regimes"]}
+
+    assert list(regimes) == ["trend", "range", "transition"]
+    assert regimes["trend"]["wins"] == 1
+    assert regimes["range"]["losses"] == 1
+    assert regimes["transition"]["partials"] == 1
+
+    rendered = render_report(report)
+    assert "by regime:" in rendered
+    assert "趋势(trend)" in rendered
+    assert "震荡(range)" in rendered
+    assert "过渡(transition)" in rendered
     s.close()
