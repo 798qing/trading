@@ -14,6 +14,7 @@
 | `/btcr` | 强制 live 刷新（~2s） | `cli --refresh` |
 | `/btcl` | full-analysis LLM 综合解读；失败自动降级 | `cli --llm` |
 | `/btch` | 健康检查（热库/结算/推送） | `cli --health` |
+| `/btchist` | 最近分析/结算流水 | `cli --history --limit 10` |
 | `/btcs` | 7 日结算绩效统计 | `cli --stats --days 7` |
 | `/btcw` | 30 日自动权重建议（只读） | `cli --auto-weight --days 30` |
 
@@ -49,6 +50,8 @@ tail -20 ~/.hermes/logs/gateway.log | grep -i telegram   # 看 telegram connecte
 deploy/install-launchd.sh
 ```
 没装 precompute 时,`/btc` 首次或库空会自动回退 live(~2s),之后仍走库。
+如需配置热更新的长运行预采集，可手动运行 `PYTHONPATH=src .venv/bin/python -m precompute --watch`；
+该模式按 `ops.precompute_interval_min` 周期执行，并在周期之间热重载 config/secrets。
 
 安装后会有三个本地任务:
 

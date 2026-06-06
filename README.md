@@ -23,6 +23,7 @@ cp config/secrets.env.example config/secrets.env   # 填入真实 key（已 giti
 PYTHONPATH=src .venv/bin/python -m cli --push                      # 显式按阶段2规则主动推送
 PYTHONPATH=src .venv/bin/python -m cli --llm                       # full-analysis LLM 解读（失败自动降级）
 PYTHONPATH=src .venv/bin/python -m cli --health                    # 检查热库/结算/推送状态
+PYTHONPATH=src .venv/bin/python -m cli --history --limit 10         # 查看最近分析/结算流水
 PYTHONPATH=src .venv/bin/python -m cli --stats --days 7            # 查看已结算信号表现
 PYTHONPATH=src .venv/bin/python -m cli --auto-weight --days 30     # 输出自动调权重建议（只读）
 deploy/install-launchd.sh                                          # 安装预采集/巡检/周报 launchd
@@ -57,6 +58,7 @@ bot.py / main.py
 - `ai.trading-agent.precompute`：每 15 分钟采集落库并结算到期信号，不主动推送。
 - `ai.trading-agent.health`：每 5 分钟执行 `cli --health`，日志在 `data/health.log`。
 - `ai.trading-agent.stats`：每周一 08:05 执行 `cli --stats --days 7`，日志在 `data/stats.log`。
-- Hermes quick commands：`/btc` 默认裸检测器卡、`/btcq` 快报、`/btcr` 强制刷新、`/btcl` LLM 综合解读、`/btch` 健康检查、`/btcs` 7日统计、`/btcw` 30日权重建议。
+- 可选长运行预采集：`PYTHONPATH=src .venv/bin/python -m precompute --watch`，按配置周期执行并热重载 config/secrets。
+- Hermes quick commands：`/btc` 默认裸检测器卡、`/btcq` 快报、`/btcr` 强制刷新、`/btcl` LLM 综合解读、`/btch` 健康检查、`/btchist` 最近流水、`/btcs` 7日统计、`/btcw` 30日权重建议。
 - Stage 3 auto-weight：`cli --auto-weight` 只输出建议；样本少于 30 条已结算信号时只告警不改权重。
 - Stage 3 full-analysis：默认 `/btc`/`cli` 仍走快路径；显式 `--llm` 才调用 provider router，LLM 不可用时卡片保留纯检测器结论。
