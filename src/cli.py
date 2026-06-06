@@ -13,6 +13,7 @@
     python -m cli --stats         # 已结算信号回测统计
     python -m cli --auto-weight   # 自动权重建议（只读，不改配置）
     python -m cli --sample-progress # 采样进度/防空转巡检
+    python -m cli --probe-sources # 外部源权限/可用性探针
     python -m cli --health        # 运行健康检查
 """
 from __future__ import annotations
@@ -28,8 +29,9 @@ from data.snapshot import build_snapshot, has_klines, latest_sources
 from data.store import Store
 from llm.strategist import full_analysis
 from output import card_builder as cb
+from output.rollback import maybe_revoke_on_wick
 from output.push_service import push_once
-from output.telegram import TelegramError
+from output.telegram import TelegramClient, TelegramError
 
 
 def _persist(store, cfg, a, *, required: bool) -> int | None:
@@ -136,6 +138,46 @@ def _run_sample_progress(args, cfg, store) -> int:
     return 0
 
 
+def _run_probe_sources(args, cfg) -> int:
+    report: dict[str, dict] = {}
+
+    cg_key = cfg.secret("COINGLASS_API_KEY")
+    report["coinglass_etf"] = {"key_present": bool(cg_key)}
+    if cg_key:
+        try:
+            from data.collectors.coinglass import CoinGlassClient
+
+            with CoinGlassClient(api_key=cg_key, timeout=20.0) as cg:
+                rows = cg.bitcoin_etf_flows(ticker="IBIT", limit=3)
+            latest = rows[-1] if rows else None
+            report["coinglass_etf"].update({
+                "ok": bool(rows),
+                "rows": len(rows),
+                "latest": ({
+                    "ts": latest.ts,
+                    "ticker": latest.ticker,
+                    "net_flow_usd": latest.net_flow_usd,
+                    "total_value_usd": latest.total_value_usd,
+                } if latest else None),
+            })
+        except Exception as e:  # noqa: BLE001
+            report["coinglass_etf"].update({"ok": False, "error": f"{type(e).__name__}: {e}"})
+    else:
+        report["coinglass_etf"].update({"ok": False, "error": "missing COINGLASS_API_KEY"})
+
+    try:
+        from data.collectors.macro import YahooMacroClient, snapshot_to_source
+
+        with YahooMacroClient(timeout=20.0) as macro:
+            src = snapshot_to_source(macro.rolling_linkage())
+        report["macro"] = {"ok": True, "source": src}
+    except Exception as e:  # noqa: BLE001
+        report["macro"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if all(item.get("ok") for item in report.values()) else 1
+
+
 def run(args) -> int:
     cfg = load_config()
     store = Store(cfg.db_path)
@@ -170,6 +212,12 @@ def run(args) -> int:
         finally:
             store.close()
 
+    if args.probe_sources:
+        try:
+            return _run_probe_sources(args, cfg)
+        finally:
+            store.close()
+
     primary = cfg.require("timeframes.primary")
 
     live = args.refresh or not has_klines(store, primary)
@@ -193,13 +241,25 @@ def run(args) -> int:
         if not args.json:
             card = cb.render(a, cfg, quick=args.quick)
         if args.push:
+            own_tg = None
+            if cfg.secret("TELEGRAM_BOT_TOKEN"):
+                own_tg = TelegramClient(cfg.secret("TELEGRAM_BOT_TOKEN"))
+                rollback = maybe_revoke_on_wick(a, cfg, store, telegram=own_tg)
+                if rollback.revoked:
+                    print(f"push_revoked={rollback.reason} event_id={rollback.push_event_id}",
+                          file=sys.stderr)
             push_text = cb.render(a, cfg, quick=False)
-            result = push_once(a, cfg, store, analysis_id=analysis_id, text=push_text)
-            if result.sent:
-                print(f"push={result.decision.reason} event_id={result.push_event_id}",
-                      file=sys.stderr)
-            else:
-                print(f"push_skipped={result.decision.reason}", file=sys.stderr)
+            try:
+                result = push_once(a, cfg, store, telegram=own_tg,
+                                   analysis_id=analysis_id, text=push_text)
+                if result.sent:
+                    print(f"push={result.decision.reason} event_id={result.push_event_id}",
+                          file=sys.stderr)
+                else:
+                    print(f"push_skipped={result.decision.reason}", file=sys.stderr)
+            finally:
+                if own_tg is not None:
+                    own_tg.close()
     except OKXError as e:
         print(f"⚠️ 数据源不可用：{e}", file=sys.stderr)
         return 2
@@ -233,6 +293,8 @@ def main(argv=None) -> int:
                    help="输出自动调权重建议（只读，不改配置）")
     p.add_argument("--sample-progress", action="store_true",
                    help="输出阶段3采样进度/防空转巡检")
+    p.add_argument("--probe-sources", action="store_true",
+                   help="探测 CoinGlass ETF / 宏观源可用性，不打印密钥")
     p.add_argument("--health", action="store_true", help="检查数据库/热库/结算/推送状态")
     p.add_argument("--days", type=int, default=30, help="统计最近 N 天，默认 30")
     p.add_argument("--all-history", action="store_true", help="统计全部历史")

@@ -63,6 +63,23 @@ class TelegramClient:
             raw=result,
         )
 
+    def delete_message(self, chat_id: str | int, message_id: int) -> bool:
+        if chat_id is None or str(chat_id).strip() == "":
+            raise TelegramError("缺少 TELEGRAM_CHAT_ID")
+        payload: dict[str, Any] = {"chat_id": chat_id, "message_id": message_id}
+        path = f"/bot{self.token}/deleteMessage"
+        try:
+            resp = self._client.post(self.base_url + path, json=payload)
+            resp.raise_for_status()
+            body = resp.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise TelegramError(f"Telegram deleteMessage 请求失败: {e}") from e
+
+        if body.get("ok") is not True:
+            desc = body.get("description") or body.get("error_code") or "unknown"
+            raise TelegramError(f"Telegram deleteMessage 业务错误: {desc}")
+        return bool(body.get("result", True))
+
     def close(self) -> None:
         if self._own_client:
             self._client.close()

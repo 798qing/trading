@@ -90,6 +90,22 @@ def test_telegram_business_error_raises():
         c.send_message("833", "hello")
 
 
+def test_telegram_delete_message_posts_expected_payload():
+    seen = {}
+
+    def handler(req):
+        seen["path"] = req.url.path
+        seen["payload"] = req.read()
+        return httpx.Response(200, json={"ok": True, "result": True})
+
+    c = TelegramClient("token", client=_http(handler))
+
+    assert c.delete_message("833", 42) is True
+    assert seen["path"] == "/bottoken/deleteMessage"
+    assert b'"chat_id":"833"' in seen["payload"]
+    assert b'"message_id":42' in seen["payload"]
+
+
 def test_push_once_sends_and_records_only_after_success(tmp_path):
     s = _store(tmp_path)
     seen = {}
@@ -112,6 +128,8 @@ def test_push_once_sends_and_records_only_after_success(tmp_path):
     assert "新信号" in seen["text"]
     row = s.latest_push_event(result.decision.signature)
     assert row["analysis_id"] == aid
+    assert row["telegram_message_id"] == 7
+    assert row["telegram_chat_id"] == "833"
     s.close()
 
 

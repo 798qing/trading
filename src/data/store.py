@@ -118,6 +118,10 @@ _SCHEMA = [
         score       INTEGER,
         tag         TEXT,
         analysis_id INTEGER,
+        telegram_message_id INTEGER,
+        telegram_chat_id TEXT,
+        revoked_ts INTEGER,
+        revoke_reason TEXT,
         FOREIGN KEY (analysis_id) REFERENCES analyses(id)
     );
     """,
@@ -158,6 +162,22 @@ class Store:
         cur = self.conn.cursor()
         for stmt in _SCHEMA:
             cur.execute(stmt)
+        self._migrate_push_events()
+
+    def _migrate_push_events(self) -> None:
+        cols = {
+            row["name"] for row in
+            self.conn.execute("PRAGMA table_info(push_events)").fetchall()
+        }
+        additions = {
+            "telegram_message_id": "INTEGER",
+            "telegram_chat_id": "TEXT",
+            "revoked_ts": "INTEGER",
+            "revoke_reason": "TEXT",
+        }
+        for name, typ in additions.items():
+            if name not in cols:
+                self.conn.execute(f"ALTER TABLE push_events ADD COLUMN {name} {typ}")
 
     # --- K 线 ---
     def upsert_klines(self, tf: str, rows: list[tuple]) -> int:
@@ -283,13 +303,17 @@ class Store:
     def save_push_event(self, *, ts: int, symbol: str, signature: str,
                         direction: str | None, entry_lo: float | None,
                         entry_hi: float | None, score: int | None,
-                        tag: str | None, analysis_id: int | None = None) -> int:
+                        tag: str | None, analysis_id: int | None = None,
+                        telegram_message_id: int | None = None,
+                        telegram_chat_id: str | int | None = None) -> int:
         """记录一次实际推送/更新，用于后续去重和冷却判断。"""
         cur = self.conn.execute(
             "INSERT INTO push_events "
-            "(ts,symbol,signature,direction,entry_lo,entry_hi,score,tag,analysis_id) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (ts, symbol, signature, direction, entry_lo, entry_hi, score, tag, analysis_id),
+            "(ts,symbol,signature,direction,entry_lo,entry_hi,score,tag,analysis_id,"
+            " telegram_message_id,telegram_chat_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (ts, symbol, signature, direction, entry_lo, entry_hi, score, tag, analysis_id,
+             telegram_message_id, str(telegram_chat_id) if telegram_chat_id is not None else None),
         )
         return int(cur.lastrowid)
 
@@ -299,6 +323,20 @@ class Store:
             "SELECT * FROM push_events WHERE signature=? ORDER BY ts DESC LIMIT 1",
             (signature,),
         ).fetchone()
+
+    def latest_active_push_event(self, symbol: str) -> sqlite3.Row | None:
+        """最近一条可撤回的推送：必须有 Telegram message_id 且尚未撤回。"""
+        return self.conn.execute(
+            "SELECT * FROM push_events WHERE symbol=? AND telegram_message_id IS NOT NULL "
+            "AND revoked_ts IS NULL ORDER BY ts DESC LIMIT 1",
+            (symbol,),
+        ).fetchone()
+
+    def mark_push_revoked(self, push_event_id: int, *, ts: int, reason: str) -> None:
+        self.conn.execute(
+            "UPDATE push_events SET revoked_ts=?, revoke_reason=? WHERE id=?",
+            (ts, reason, push_event_id),
+        )
 
     # --- 只读连接（给并发读取方，如回测/查询）---
     def connect_readonly(self) -> sqlite3.Connection:

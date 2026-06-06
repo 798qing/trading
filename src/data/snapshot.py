@@ -34,7 +34,7 @@ _STALE_THRESHOLD = {
     "long_short": 6 * 3600,
     "etf_flow": 3 * 24 * 3600,
     "exchange_netflow": 3 * 24 * 3600,
-    "macro": 3 * 3600,
+    "macro": 3 * 24 * 3600,
 }
 _SOURCE_KINDS = tuple(_STALE_THRESHOLD)
 _REQUIRED_SOURCES = {"mark", "funding", "oi"}
@@ -292,4 +292,10 @@ def _collect_optional_external_sources(cfg: Config, aux: dict[str, dict | None])
     else:
         aux["exchange_netflow"] = None
 
-    aux.setdefault("macro", None)
+    try:
+        from data.collectors.macro import YahooMacroClient, snapshot_to_source
+
+        with YahooMacroClient(timeout=cfg.get("ops.llm.timeout_sec", 20)) as macro:
+            aux["macro"] = snapshot_to_source(macro.rolling_linkage())
+    except Exception:
+        aux["macro"] = None

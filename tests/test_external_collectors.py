@@ -4,6 +4,7 @@ import pytest
 
 from data.collectors.coinglass import CoinGlassClient, CoinGlassError
 from data.collectors.cryptoquant import CryptoQuantClient, CryptoQuantError
+from data.collectors.macro import YahooMacroClient, snapshot_to_source
 
 
 def _http(handler):
@@ -36,6 +37,13 @@ def test_coinglass_long_short_ratio_parsing_and_headers():
 def test_coinglass_rejects_missing_key():
     c = CoinGlassClient(client=_http(lambda req: httpx.Response(200, json={})))
     with pytest.raises(CoinGlassError, match="COINGLASS_API_KEY"):
+        c.long_short_ratio()
+
+
+def test_coinglass_rejects_non_ascii_key():
+    c = CoinGlassClient(api_key="abc（备注）",
+                        client=_http(lambda req: httpx.Response(200, json={})))
+    with pytest.raises(CoinGlassError, match="非 ASCII"):
         c.long_short_ratio()
 
 
@@ -77,3 +85,36 @@ def test_cryptoquant_rejects_missing_key():
     c = CryptoQuantClient(client=_http(lambda req: httpx.Response(200, json={})))
     with pytest.raises(CryptoQuantError, match="CRYPTOQUANT_API_KEY"):
         c.exchange_netflow()
+
+
+def test_yahoo_macro_rolling_linkage_parsing():
+    btc_rets = [0.01 if i % 2 == 0 else -0.005 for i in range(32)] + [0.01, 0.01]
+    dxy_rets = [-r for r in btc_rets]
+
+    def make_closes(start, returns):
+        out = [start]
+        for r in returns:
+            out.append(out[-1] * (1 + r))
+        return out
+
+    def handler(req):
+        symbol = req.url.path.rsplit("/", 1)[-1]
+        series = {
+            "BTC-USD": make_closes(100, btc_rets),
+            "^IXIC": make_closes(200, btc_rets),
+            "DX-Y.NYB": make_closes(100, dxy_rets),
+        }[symbol]
+        return httpx.Response(200, json={"chart": {"result": [{
+            "timestamp": [1700000000 + i * 86400 for i in range(35)],
+            "indicators": {"quote": [{"close": series}]},
+        }]}})
+
+    snap = YahooMacroClient(client=_http(handler)).rolling_linkage(
+        window_days=30, min_overlap=20,
+    )
+
+    src = snapshot_to_source(snap)
+    assert src["risk_state"] == "risk_on"
+    assert src["btc_nasdaq_corr"] > 0.9
+    assert src["btc_dxy_corr"] < -0.9
+    assert src["event_in_window"] is False

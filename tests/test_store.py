@@ -81,9 +81,13 @@ def test_push_event_roundtrip(tmp_path):
     pid = s.save_push_event(ts=1000, symbol="BTC-USDT-SWAP",
                             signature="BTC-USDT-SWAP|long|99.0-101.0",
                             direction="long", entry_lo=99.0, entry_hi=101.0,
-                            score=72, tag="新信号🆕")
+                            score=72, tag="新信号🆕",
+                            telegram_message_id=42, telegram_chat_id="833")
     assert pid > 0
     row = s.latest_push_event("BTC-USDT-SWAP|long|99.0-101.0")
     assert dict(row)["score"] == 72
+    assert dict(s.latest_active_push_event("BTC-USDT-SWAP"))["telegram_message_id"] == 42
+    s.mark_push_revoked(pid, ts=1100, reason="opposite_wick")
+    assert s.latest_active_push_event("BTC-USDT-SWAP") is None
     assert s.latest_push_event("missing") is None
     s.close()

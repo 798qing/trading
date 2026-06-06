@@ -65,7 +65,9 @@ def evaluate(a, cfg, store, *, now: int | None = None) -> PushDecision:
 
 
 def record_push(store, a, decision: PushDecision, *,
-                analysis_id: int | None = None, now: int | None = None) -> int | None:
+                analysis_id: int | None = None, now: int | None = None,
+                telegram_message_id: int | None = None,
+                telegram_chat_id: str | int | None = None) -> int | None:
     """实际推送成功后写入去重记录。未推送则不写。"""
     if not decision.should_push or not decision.signature:
         return None
@@ -75,4 +77,5 @@ def record_push(store, a, decision: PushDecision, *,
         ts=n, symbol=a.snapshot.symbol, signature=decision.signature,
         direction=a.plan.direction, entry_lo=lo, entry_hi=hi,
         score=a.fusion.score, tag=decision.tag, analysis_id=analysis_id,
+        telegram_message_id=telegram_message_id, telegram_chat_id=telegram_chat_id,
     )

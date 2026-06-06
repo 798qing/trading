@@ -153,6 +153,9 @@ ops:
   push:
     cooldown_min: 240           # 同向同入场区 4h 内不重复推送（缺口4）
     dedup_window_sec: 60        # 同指令 60s 去重
+    rollback_window_min: 30     # 推送后 30min 内如出现反向插针，尝试撤回原卡片（缺口3）
+    rollback_wick_ratio: 0.55   # 插针影线占整根波幅比例
+    rollback_max_body_ratio: 0.35 # 插针实体占整根波幅上限
     queue_max: 3
   llm:
     provider: "deepseek"        # 主 provider；OpenAI-compatible chat completions

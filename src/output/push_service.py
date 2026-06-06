@@ -58,7 +58,10 @@ def push_once(a, cfg, store, *, telegram: _Sender | None = None,
     finally:
         if own_sender and hasattr(sender, "close"):
             sender.close()
-    event_id = record_push(store, a, decision, analysis_id=analysis_id, now=now)
+    event_id = record_push(
+        store, a, decision, analysis_id=analysis_id, now=now,
+        telegram_message_id=msg.message_id, telegram_chat_id=msg.chat_id or chat_id,
+    )
     return PushResult(
         decision=decision,
         sent=True,
