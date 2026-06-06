@@ -9,9 +9,11 @@ from dataclasses import dataclass
 
 from data.snapshot import collect_and_freeze
 from detectors.adx import ADXDetector
+from detectors.basis import BasisDetector
 from detectors.candle import CandleDetector
 from detectors.fib import FibDetector
 from detectors.macd import MACDDetector
+from detectors.oi_funding import OIFundingDetector
 from detectors.rsi import RSIDetector
 from detectors.structure import StructureDetector
 from detectors.volume import VolumeDetector
@@ -23,7 +25,8 @@ from review.validate import ValidationResult, validate_plan
 
 # wyckoff 第一版只作观察字段(D4)：direction=neutral，fusion 自动跳过不进评分。
 _PRIMARY_DETECTORS = (StructureDetector, VolumeDetector, ADXDetector, FibDetector,
-                      CandleDetector, MACDDetector, RSIDetector, WyckoffDetector)
+                      CandleDetector, MACDDetector, RSIDetector, WyckoffDetector,
+                      OIFundingDetector, BasisDetector)
 
 
 @dataclass

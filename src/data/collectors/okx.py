@@ -91,6 +91,15 @@ class OKXClient:
         rows.sort(key=lambda r: r[0])          # 升序
         return rows
 
+    # --- 现货最新价（期现基差用）---
+    def ticker_last(self, inst_id: str) -> MarkPrice:
+        """现货/任意 instId 的最新成交价。复用 MarkPrice 结构。"""
+        data = self._get("/api/v5/market/ticker", {"instId": inst_id})
+        if not data:
+            raise OKXError(f"ticker 为空：{inst_id}")
+        d = data[0]
+        return MarkPrice(price=float(d["last"]), as_of_ts=int(d["ts"]) // 1000)
+
     # --- 标记价 ---
     def mark_price(self, inst_id: str) -> MarkPrice:
         data = self._get("/api/v5/public/mark-price",

@@ -5,7 +5,7 @@ import pytest
 
 from common import clock
 from common.config import load_config
-from data.snapshot import build_snapshot
+from data.snapshot import build_snapshot, latest_sources
 from data.store import Store
 
 _CFG = """
@@ -104,3 +104,14 @@ def test_unavailable_mark_breaks_completeness(tmp_path):
     snap = build_snapshot(store, cfg, aux, now=now)
     assert snap.sources["mark"]["status"] == "unavailable"
     assert snap.data_quality["is_complete"] is False
+
+
+def test_latest_sources_carries_optional_spot(tmp_path):
+    cfg, store, now, lc = _setup(tmp_path)
+    aux = _aux(now)
+    aux["spot"] = {"price": 66950.0, "as_of_ts": now}
+
+    build_snapshot(store, cfg, aux, now=now)
+
+    sources = latest_sources(store)
+    assert sources["spot"]["price"] == 66950.0

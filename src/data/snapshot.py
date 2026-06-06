@@ -26,7 +26,7 @@ Kline = namedtuple("Kline", "ts open high low close volume")
 _MIN_ROWS_FOR_ANALYSIS = 50
 
 # 各源新鲜度阈值（秒）：超过则标 stale。资金费率本就低频，给宽容窗口。
-_STALE_THRESHOLD = {"mark": 120, "oi": 300, "funding": 3 * 3600}
+_STALE_THRESHOLD = {"mark": 120, "oi": 300, "funding": 3 * 3600, "spot": 120}
 
 
 @dataclass(frozen=True)
@@ -97,9 +97,15 @@ def build_snapshot(store: Store, cfg: Config, aux: dict[str, dict | None],
         if tf in ([primary] + list(higher)) and len(ks) < _MIN_ROWS_FOR_ANALYSIS:
             warnings.append(f"{tf} 仅 {len(ks)} 根，不足 {_MIN_ROWS_FOR_ANALYSIS}")
 
-    # 外部即时源
+    # OI 环比变化（price×OI 组合用）：与上一份快照比
+    if aux.get("oi"):
+        prior = _prior_oi(store)
+        if prior and prior > 0:
+            aux["oi"]["change_pct"] = round((aux["oi"]["oi"] - prior) / prior * 100, 4)
+
+    # 外部即时源（spot 为可选，缺失不视为不完整）
     sources: dict[str, dict] = {}
-    for kind in ("mark", "funding", "oi"):
+    for kind in ("mark", "funding", "oi", "spot"):
         val = aux.get(kind)
         status = _source_status(val, kind, n)
         entry = {"status": status}
@@ -108,7 +114,7 @@ def build_snapshot(store: Store, cfg: Config, aux: dict[str, dict | None],
         sources[kind] = entry
         if status == "stale":
             warnings.append(f"{kind} 数据过期（as_of={val.get('as_of_ts') if val else None}）")
-        elif status == "unavailable":
+        elif status == "unavailable" and kind != "spot":
             warnings.append(f"{kind} 数据不可用")
 
     required = [primary] + list(higher)
@@ -142,23 +148,30 @@ def build_snapshot(store: Store, cfg: Config, aux: dict[str, dict | None],
 
 
 def latest_sources(store: Store) -> dict[str, dict | None]:
-    """从最近一条已存快照取回 mark/funding/oi（作为热路径重算的 aux）。
+    """从最近一条已存快照取回外部源（作为热路径重算的 aux）。
 
     让 /btc 能用 precompute 落库的最新外部数据重建快照，而不必再 live 拉 OKX。
     无历史快照时各项返回 None。
     """
     row = store.conn.execute(
         "SELECT payload FROM snapshots ORDER BY ts DESC LIMIT 1").fetchone()
+    kinds = ("mark", "funding", "oi", "spot")
     if not row:
-        return {"mark": None, "funding": None, "oi": None}
+        return {kind: None for kind in kinds}
     import json as _json
     sources = _json.loads(row["payload"]).get("sources", {})
     out: dict[str, dict | None] = {}
-    for kind in ("mark", "funding", "oi"):
+    for kind in kinds:
         val = sources.get(kind)
         # 仅在有真实数据时回填（status=unavailable 视为无）
         out[kind] = val if val and val.get("status") != "unavailable" else None
     return out
+
+
+def _prior_oi(store: Store) -> float | None:
+    """上一份快照记录的 OI（算环比变化用）。"""
+    src = latest_sources(store).get("oi")
+    return src.get("oi") if src else None
 
 
 def has_klines(store: Store, tf: str, min_rows: int = _MIN_ROWS_FOR_ANALYSIS) -> bool:
@@ -197,5 +210,11 @@ def collect_and_freeze(store: Store, cfg: Config, okx, now: int | None = None
         aux["oi"] = {"oi": oi.oi, "oi_ccy": oi.oi_ccy, "as_of_ts": oi.as_of_ts}
     except Exception:
         aux["oi"] = None
+    try:                                       # 现货价（期现基差用）：BTC-USDT-SWAP → BTC-USDT
+        spot_inst = symbol.replace("-SWAP", "")
+        sp = okx.ticker_last(spot_inst)
+        aux["spot"] = {"price": sp.price, "as_of_ts": sp.as_of_ts}
+    except Exception:
+        aux["spot"] = None
 
     return build_snapshot(store, cfg, aux, now=now)

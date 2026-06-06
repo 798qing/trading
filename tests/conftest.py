@@ -24,7 +24,8 @@ detectors:
   rsi: {period: 14, overbought: 70, oversold: 30}
 fusion:
   base_weights: {structure: 1.5, volume: 2.0, adx: 0.5, fib: 0.8,
-                 candle: 1.0, macd: 1.0, rsi: 0.8, wyckoff: 1.2}
+                 candle: 1.0, macd: 1.0, rsi: 0.8, wyckoff: 1.2,
+                 oi_funding: 1.0, basis: 0.8}
   trend_multiplier: {with_trend: 1.5, against_trend: 0.5}
   data_quality_multiplier: {exact: 1.0, approximated: 0.7, stale: 0.3, unavailable: 0.0}
   trend_multiplier_exempt: [wyckoff]
