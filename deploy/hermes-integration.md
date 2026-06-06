@@ -17,6 +17,7 @@
 | `/btchist` | 最近分析/结算流水 | `cli --history --limit 10` |
 | `/btcs` | 7 日结算绩效统计 | `cli --stats --days 7` |
 | `/btcw` | 30 日自动权重建议（只读） | `cli --auto-weight --days 30` |
+| `/btcsp` | 30 日采样进度/防空转巡检 | `cli --sample-progress --days 30` |
 
 每个是 `type: exec`,跑:
 ```

@@ -12,6 +12,7 @@
     python -m cli --history       # 最近分析/结算流水
     python -m cli --stats         # 已结算信号回测统计
     python -m cli --auto-weight   # 自动权重建议（只读，不改配置）
+    python -m cli --sample-progress # 采样进度/防空转巡检
     python -m cli --health        # 运行健康检查
 """
 from __future__ import annotations
@@ -117,6 +118,24 @@ def _run_auto_weight(args, cfg, store) -> int:
     return 0
 
 
+def _run_sample_progress(args, cfg, store) -> int:
+    from ops.sample_progress import (
+        render_sample_progress,
+        sample_progress_json,
+        sample_progress_report,
+    )
+
+    days = None if args.all_history else args.days
+    report = sample_progress_report(store, cfg, days=days)
+    if args.json:
+        print(sample_progress_json(report))
+    else:
+        print(render_sample_progress(
+            report, timezone=cfg.get("display.timezone", "Asia/Shanghai"),
+        ))
+    return 0
+
+
 def run(args) -> int:
     cfg = load_config()
     store = Store(cfg.db_path)
@@ -142,6 +161,12 @@ def run(args) -> int:
     if args.auto_weight:
         try:
             return _run_auto_weight(args, cfg, store)
+        finally:
+            store.close()
+
+    if args.sample_progress:
+        try:
+            return _run_sample_progress(args, cfg, store)
         finally:
             store.close()
 
@@ -206,6 +231,8 @@ def main(argv=None) -> int:
     p.add_argument("--stats", action="store_true", help="输出已结算信号回测统计")
     p.add_argument("--auto-weight", action="store_true",
                    help="输出自动调权重建议（只读，不改配置）")
+    p.add_argument("--sample-progress", action="store_true",
+                   help="输出阶段3采样进度/防空转巡检")
     p.add_argument("--health", action="store_true", help="检查数据库/热库/结算/推送状态")
     p.add_argument("--days", type=int, default=30, help="统计最近 N 天，默认 30")
     p.add_argument("--all-history", action="store_true", help="统计全部历史")
