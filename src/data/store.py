@@ -105,11 +105,28 @@ _SCHEMA = [
         summary   TEXT
     );
     """,
+    # 推送去重/冷却记录（阶段2：同向+同入场区 4h 内不重复，分数大变动才更新）
+    """
+    CREATE TABLE IF NOT EXISTS push_events (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts          INTEGER NOT NULL,
+        symbol      TEXT NOT NULL,
+        signature   TEXT NOT NULL,
+        direction   TEXT,
+        entry_lo    REAL,
+        entry_hi    REAL,
+        score       INTEGER,
+        tag         TEXT,
+        analysis_id INTEGER,
+        FOREIGN KEY (analysis_id) REFERENCES analyses(id)
+    );
+    """,
     # 常用查询索引
     "CREATE INDEX IF NOT EXISTS idx_analyses_ts ON analyses(ts);",
     "CREATE INDEX IF NOT EXISTS idx_analyses_outcome ON analyses(outcome);",
     "CREATE INDEX IF NOT EXISTS idx_signals_snapshot ON signals(snapshot_id);",
     "CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);",
+    "CREATE INDEX IF NOT EXISTS idx_push_events_sig_ts ON push_events(signature, ts);",
 ]
 
 
@@ -244,6 +261,26 @@ class Store:
             (ts, snapshot_id, module, direction, strength, confidence,
              json.dumps(details, ensure_ascii=False) if details else None),
         )
+
+    def save_push_event(self, *, ts: int, symbol: str, signature: str,
+                        direction: str | None, entry_lo: float | None,
+                        entry_hi: float | None, score: int | None,
+                        tag: str | None, analysis_id: int | None = None) -> int:
+        """记录一次实际推送/更新，用于后续去重和冷却判断。"""
+        cur = self.conn.execute(
+            "INSERT INTO push_events "
+            "(ts,symbol,signature,direction,entry_lo,entry_hi,score,tag,analysis_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (ts, symbol, signature, direction, entry_lo, entry_hi, score, tag, analysis_id),
+        )
+        return int(cur.lastrowid)
+
+    def latest_push_event(self, signature: str) -> sqlite3.Row | None:
+        """取同一信号签名的最近一次推送记录。"""
+        return self.conn.execute(
+            "SELECT * FROM push_events WHERE signature=? ORDER BY ts DESC LIMIT 1",
+            (signature,),
+        ).fetchone()
 
     # --- 只读连接（给并发读取方，如回测/查询）---
     def connect_readonly(self) -> sqlite3.Connection:

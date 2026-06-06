@@ -90,5 +90,5 @@ def persist(store, cfg, a: Analysis) -> int:
         ts=snap.analysis_ts, snapshot_id=snap.snapshot_id, symbol=snap.symbol,
         score=a.fusion.score, direction=a.fusion.direction,
         plan=a.plan.to_dict(), llm_output=None, card_text=None,
-        prompt_version=None, config_version=cfg.version,
+        prompt_version=cfg.prompt_version, config_version=cfg.version,
     )

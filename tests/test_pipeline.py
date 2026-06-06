@@ -64,6 +64,7 @@ def test_analyze_runs_and_persists(tmp_path):
     assert aid > 0
     row = dict(store.conn.execute("SELECT * FROM analyses WHERE id=?", (aid,)).fetchone())
     assert row["config_version"] == cfg.version
+    assert row["prompt_version"] == cfg.prompt_version
     n_sig = store.conn.execute(
         "SELECT COUNT(*) FROM signals WHERE snapshot_id=?", (snap.snapshot_id,)
     ).fetchone()[0]

@@ -74,3 +74,16 @@ def test_readonly_connection_sees_writes(tmp_path):
     assert ro.execute("SELECT COUNT(*) FROM kline_1h").fetchone()[0] == 1
     ro.close()
     s.close()
+
+
+def test_push_event_roundtrip(tmp_path):
+    s = _store(tmp_path)
+    pid = s.save_push_event(ts=1000, symbol="BTC-USDT-SWAP",
+                            signature="BTC-USDT-SWAP|long|99.0-101.0",
+                            direction="long", entry_lo=99.0, entry_hi=101.0,
+                            score=72, tag="新信号🆕")
+    assert pid > 0
+    row = s.latest_push_event("BTC-USDT-SWAP|long|99.0-101.0")
+    assert dict(row)["score"] == 72
+    assert s.latest_push_event("missing") is None
+    s.close()

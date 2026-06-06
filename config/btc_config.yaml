@@ -130,6 +130,7 @@ ops:
     queue_max: 3
   llm:
     provider: "deepseek"        # 无备用（D15 简化：deepseek → naked-chart）
+    prompt_version: "naked_chart_v1"
     timeout_sec: 20
     fail_pause_after: 3         # 连续 3 次失败 → 暂停 30min
     fail_pause_min: 30

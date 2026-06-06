@@ -66,6 +66,11 @@ class Config:
         raw = Path(self.get("ops.db_path", "data/trading.db"))
         return raw if raw.is_absolute() else self.root / raw
 
+    @property
+    def prompt_version(self) -> str:
+        """LLM/Skill 版本；无 LLM 时仍记录 naked-chart 口径，便于回测分组。"""
+        return str(self.get("ops.llm.prompt_version", "naked_chart_v1"))
+
 
 def _canonical(data: dict[str, Any]) -> bytes:
     """确定性序列化：排序键、紧凑分隔符，保证同内容同指纹。"""
