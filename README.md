@@ -20,7 +20,8 @@ python3.11 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp config/secrets.env.example config/secrets.env   # 填入真实 key（已 gitignore）
 .venv/bin/python -m pytest                          # 跑测试
-.venv/bin/python -m cli --push                      # 显式按阶段2规则主动推送
+PYTHONPATH=src .venv/bin/python -m cli --push                      # 显式按阶段2规则主动推送
+PYTHONPATH=src .venv/bin/python -m cli --stats --days 7            # 查看已结算信号表现
 ```
 
 ## 目录

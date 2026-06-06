@@ -251,6 +251,24 @@ class Store:
             (before_ts,),
         ).fetchall()
 
+    def settled_analyses(self, *, since_ts: int | None = None,
+                         until_ts: int | None = None,
+                         symbol: str | None = None) -> list[sqlite3.Row]:
+        """取已结算分析结果（供回测 metrics 读取，按 ts 升序）。"""
+        where = ["outcome IS NOT NULL"]
+        params: list[Any] = []
+        if since_ts is not None:
+            where.append("ts>=?")
+            params.append(since_ts)
+        if until_ts is not None:
+            where.append("ts<=?")
+            params.append(until_ts)
+        if symbol is not None:
+            where.append("symbol=?")
+            params.append(symbol)
+        q = "SELECT * FROM analyses WHERE " + " AND ".join(where) + " ORDER BY ts ASC"
+        return self.conn.execute(q, params).fetchall()
+
     # --- 信号 / 背景 / 事件 ---
     def save_signal(self, *, ts: int, snapshot_id: str, module: str,
                     direction: str | None, strength: int | None,

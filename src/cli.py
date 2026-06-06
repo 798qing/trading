@@ -8,6 +8,7 @@
     python -m cli --quick         # 快报
     python -m cli --json          # 结构化 JSON（供 hermes 二次加工/LLM 解读）
     python -m cli --refresh       # 强制 live 采集最新
+    python -m cli --stats         # 已结算信号回测统计
 """
 from __future__ import annotations
 
@@ -61,10 +62,28 @@ def _summary_json(a, cfg) -> dict:
     }
 
 
+def _run_stats(args, cfg, store) -> int:
+    from backtest.metrics import metrics_report, render_report, report_json
+
+    days = None if args.all_history else args.days
+    report = metrics_report(store, cfg, days=days)
+    if args.json:
+        print(report_json(report))
+    else:
+        print(render_report(report))
+    return 0
+
+
 def run(args) -> int:
     cfg = load_config()
     store = Store(cfg.db_path)
     store.init_db()
+    if args.stats:
+        try:
+            return _run_stats(args, cfg, store)
+        finally:
+            store.close()
+
     primary = cfg.require("timeframes.primary")
 
     live = args.refresh or not has_klines(store, primary)
@@ -116,6 +135,9 @@ def main(argv=None) -> int:
     p.add_argument("--json", action="store_true", help="输出结构化 JSON")
     p.add_argument("--refresh", action="store_true", help="强制 live 采集最新")
     p.add_argument("--push", action="store_true", help="按阶段2推送规则发送 Telegram")
+    p.add_argument("--stats", action="store_true", help="输出已结算信号回测统计")
+    p.add_argument("--days", type=int, default=30, help="统计最近 N 天，默认 30")
+    p.add_argument("--all-history", action="store_true", help="统计全部历史")
     return run(p.parse_args(argv))
 
 
