@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  健康巡检 launchd 配置（每 5 分钟跑一次 cli --health）。
+
+  安装建议使用:
+    deploy/install-launchd.sh
+
+  日志:
+    tail -f __HOME__/trading-agent/data/health.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.trading-agent.health</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/trading-agent/.venv/bin/python</string>
+    <string>-m</string>
+    <string>cli</string>
+    <string>--health</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__/trading-agent/src</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>
+    <string>__HOME__/trading-agent/src</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/trading-agent/data/health.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/trading-agent/data/health.log</string>
+</dict>
+</plist>

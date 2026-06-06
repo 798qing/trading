@@ -12,6 +12,8 @@
 | `/btc`  | 默认卡（观望/信号），读热库 ~60ms | `cli` |
 | `/btcq` | 快报 | `cli --quick` |
 | `/btcr` | 强制 live 刷新（~2s） | `cli --refresh` |
+| `/btch` | 健康检查（热库/结算/推送） | `cli --health` |
+| `/btcs` | 7 日结算绩效统计 | `cli --stats --days 7` |
 
 每个是 `type: exec`,跑:
 ```
@@ -39,13 +41,19 @@ tail -20 ~/.hermes/logs/gateway.log | grep -i telegram   # 看 telegram connecte
 
 ## 数据新鲜度（让 /btc 秒回的前提）
 
-装 precompute launchd（每 15m 采集落库,养热库）:
+装 launchd 常驻任务（预采集 + 健康巡检 + 周报统计）:
 ```
-sed "s#__HOME__#$HOME#g" deploy/ai.trading-agent.precompute.plist \
-  > ~/Library/LaunchAgents/ai.trading-agent.precompute.plist
-launchctl load ~/Library/LaunchAgents/ai.trading-agent.precompute.plist
+deploy/install-launchd.sh
 ```
 没装 precompute 时,`/btc` 首次或库空会自动回退 live(~2s),之后仍走库。
+
+安装后会有三个本地任务:
+
+| Label | 频率 | 作用 | 日志 |
+|:--|:--|:--|:--|
+| `ai.trading-agent.precompute` | 每 15 分钟 | live 采集、冻结快照、结算到期信号 | `data/precompute.log` |
+| `ai.trading-agent.health` | 每 5 分钟 | 只读健康检查 | `data/health.log` |
+| `ai.trading-agent.stats` | 每周一 08:05 | 7 日绩效统计 | `data/stats.log` |
 
 ## 回滚
 

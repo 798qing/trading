@@ -23,6 +23,7 @@ cp config/secrets.env.example config/secrets.env   # 填入真实 key（已 giti
 PYTHONPATH=src .venv/bin/python -m cli --push                      # 显式按阶段2规则主动推送
 PYTHONPATH=src .venv/bin/python -m cli --health                    # 检查热库/结算/推送状态
 PYTHONPATH=src .venv/bin/python -m cli --stats --days 7            # 查看已结算信号表现
+deploy/install-launchd.sh                                          # 安装预采集/巡检/周报 launchd
 ```
 
 ## 目录
@@ -49,3 +50,9 @@ bot.py / main.py
 - D8 全链路 UTC，仅展示层转时区 · D9 SQLite WAL + 单写入者 · D10 对数收益率为统一底座
 - D15 LLM：DeepSeek 主（**无备用，官方直连**）→ naked-chart 兜底
 - 部署：本地 launchd 常驻
+
+## 常驻与巡检
+- `ai.trading-agent.precompute`：每 15 分钟采集落库并结算到期信号，不主动推送。
+- `ai.trading-agent.health`：每 5 分钟执行 `cli --health`，日志在 `data/health.log`。
+- `ai.trading-agent.stats`：每周一 08:05 执行 `cli --stats --days 7`，日志在 `data/stats.log`。
+- Hermes quick commands：`/btc` 默认卡、`/btcq` 快报、`/btcr` 强制刷新、`/btch` 健康检查、`/btcs` 7日统计。

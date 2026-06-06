@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  每周绩效统计 launchd 配置（每周一 08:05 跑 cli --stats --days 7）。
+
+  安装建议使用:
+    deploy/install-launchd.sh
+
+  日志:
+    tail -f __HOME__/trading-agent/data/stats.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.trading-agent.stats</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/trading-agent/.venv/bin/python</string>
+    <string>-m</string>
+    <string>cli</string>
+    <string>--stats</string>
+    <string>--days</string>
+    <string>7</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__/trading-agent/src</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key>
+    <string>__HOME__/trading-agent/src</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>5</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/trading-agent/data/stats.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/trading-agent/data/stats.log</string>
+</dict>
+</plist>
