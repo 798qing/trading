@@ -13,10 +13,14 @@ from detectors.adx import ADXDetector
 from detectors.basis import BasisDetector
 from detectors.candle import CandleDetector
 from detectors.fib import FibDetector
+from detectors.liquidation import LiquidationDetector
+from detectors.macro import MacroDetector
 from detectors.macd import MACDDetector
 from detectors.oi_funding import OIFundingDetector
+from detectors.onchain import OnchainDetector
 from detectors.rsi import RSIDetector
 from detectors.structure import StructureDetector
+from detectors.vol_regime import VolRegimeDetector
 from detectors.volume import VolumeDetector
 from detectors.wyckoff import WyckoffDetector
 from fusion.fusion import FusionResult, fuse
@@ -27,7 +31,8 @@ from review.validate import ValidationResult, validate_plan
 # wyckoff 第一版只作观察字段(D4)：direction=neutral，fusion 自动跳过不进评分。
 _PRIMARY_DETECTORS = (StructureDetector, VolumeDetector, ADXDetector, FibDetector,
                       CandleDetector, MACDDetector, RSIDetector, WyckoffDetector,
-                      OIFundingDetector, BasisDetector)
+                      OIFundingDetector, BasisDetector, LiquidationDetector,
+                      OnchainDetector, MacroDetector, VolRegimeDetector)
 
 
 @dataclass

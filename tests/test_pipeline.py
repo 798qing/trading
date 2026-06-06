@@ -59,7 +59,8 @@ def test_analyze_runs_and_persists(tmp_path):
     a = analyze(store, cfg, snapshot=snap)
     assert a.recommendation in {"signal", "wait"}
     assert set(a.signals) == {"structure", "volume", "adx", "fib", "candle", "macd",
-                              "rsi", "wyckoff", "oi_funding", "basis"}
+                              "rsi", "wyckoff", "oi_funding", "basis",
+                              "liquidation", "onchain", "macro", "vol_regime"}
 
     aid = persist(store, cfg, a)
     assert aid > 0
@@ -69,7 +70,7 @@ def test_analyze_runs_and_persists(tmp_path):
     n_sig = store.conn.execute(
         "SELECT COUNT(*) FROM signals WHERE snapshot_id=?", (snap.snapshot_id,)
     ).fetchone()[0]
-    assert n_sig == 10
+    assert n_sig == 14
     store.close()
 
 

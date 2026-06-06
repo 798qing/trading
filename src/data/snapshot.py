@@ -26,7 +26,18 @@ Kline = namedtuple("Kline", "ts open high low close volume")
 _MIN_ROWS_FOR_ANALYSIS = 50
 
 # 各源新鲜度阈值（秒）：超过则标 stale。资金费率本就低频，给宽容窗口。
-_STALE_THRESHOLD = {"mark": 120, "oi": 300, "funding": 3 * 3600, "spot": 120}
+_STALE_THRESHOLD = {
+    "mark": 120,
+    "oi": 300,
+    "funding": 3 * 3600,
+    "spot": 120,
+    "long_short": 6 * 3600,
+    "etf_flow": 3 * 24 * 3600,
+    "exchange_netflow": 3 * 24 * 3600,
+    "macro": 3 * 3600,
+}
+_SOURCE_KINDS = tuple(_STALE_THRESHOLD)
+_REQUIRED_SOURCES = {"mark", "funding", "oi"}
 
 
 @dataclass(frozen=True)
@@ -103,9 +114,9 @@ def build_snapshot(store: Store, cfg: Config, aux: dict[str, dict | None],
         if prior and prior > 0:
             aux["oi"]["change_pct"] = round((aux["oi"]["oi"] - prior) / prior * 100, 4)
 
-    # 外部即时源（spot 为可选，缺失不视为不完整）
+    # 外部即时源（spot/阶段3扩展源为可选，缺失不视为不完整）
     sources: dict[str, dict] = {}
-    for kind in ("mark", "funding", "oi", "spot"):
+    for kind in _SOURCE_KINDS:
         val = aux.get(kind)
         status = _source_status(val, kind, n)
         entry = {"status": status}
@@ -114,7 +125,7 @@ def build_snapshot(store: Store, cfg: Config, aux: dict[str, dict | None],
         sources[kind] = entry
         if status == "stale":
             warnings.append(f"{kind} 数据过期（as_of={val.get('as_of_ts') if val else None}）")
-        elif status == "unavailable" and kind != "spot":
+        elif status == "unavailable" and kind in _REQUIRED_SOURCES:
             warnings.append(f"{kind} 数据不可用")
 
     required = [primary] + list(higher)
@@ -155,7 +166,7 @@ def latest_sources(store: Store) -> dict[str, dict | None]:
     """
     row = store.conn.execute(
         "SELECT payload FROM snapshots ORDER BY ts DESC LIMIT 1").fetchone()
-    kinds = ("mark", "funding", "oi", "spot")
+    kinds = _SOURCE_KINDS
     if not row:
         return {kind: None for kind in kinds}
     import json as _json
@@ -216,5 +227,69 @@ def collect_and_freeze(store: Store, cfg: Config, okx, now: int | None = None
         aux["spot"] = {"price": sp.price, "as_of_ts": sp.as_of_ts}
     except Exception:
         aux["spot"] = None
+    _collect_optional_external_sources(cfg, aux)
 
     return build_snapshot(store, cfg, aux, now=now)
+
+
+def _collect_optional_external_sources(cfg: Config, aux: dict[str, dict | None]) -> None:
+    """阶段3外部因子采集：缺 key/失败均降级为 None，不影响 OKX 主链路。"""
+    cg_key = cfg.secret("COINGLASS_API_KEY")
+    if cg_key:
+        try:
+            from data.collectors.coinglass import CoinGlassClient
+
+            with CoinGlassClient(api_key=cg_key) as cg:
+                try:
+                    ls_rows = cg.long_short_ratio(exchange="OKX", symbol="BTCUSDT",
+                                                  interval="1h", limit=24)
+                    latest = ls_rows[-1] if ls_rows else None
+                    aux["long_short"] = ({
+                        "symbol": latest.symbol,
+                        "long_ratio": latest.long_ratio,
+                        "short_ratio": latest.short_ratio,
+                        "long_short_ratio": latest.long_short_ratio,
+                        "as_of_ts": latest.ts,
+                    } if latest else None)
+                except Exception:
+                    aux["long_short"] = None
+                try:
+                    etf_rows = cg.bitcoin_etf_flows(ticker="IBIT", limit=30)
+                    etf = etf_rows[-1] if etf_rows else None
+                    aux["etf_flow"] = ({
+                        "ticker": etf.ticker,
+                        "net_flow_usd": etf.net_flow_usd,
+                        "total_value_usd": etf.total_value_usd,
+                        "as_of_ts": etf.ts,
+                    } if etf else None)
+                except Exception:
+                    aux["etf_flow"] = None
+        except Exception:
+            aux["long_short"] = None
+            aux["etf_flow"] = None
+    else:
+        aux["long_short"] = None
+        aux["etf_flow"] = None
+
+    cq_key = cfg.secret("CRYPTOQUANT_API_KEY")
+    if cq_key:
+        try:
+            from data.collectors.cryptoquant import CryptoQuantClient
+
+            with CryptoQuantClient(api_key=cq_key) as cq:
+                rows = cq.exchange_netflow(exchange="all_exchange", window="day", limit=30)
+                nf = rows[-1] if rows else None
+                aux["exchange_netflow"] = ({
+                    "exchange": nf.exchange,
+                    "window": nf.window,
+                    "netflow_total": nf.netflow_total,
+                    "inflow_total": nf.inflow_total,
+                    "outflow_total": nf.outflow_total,
+                    "as_of_ts": nf.ts,
+                } if nf else None)
+        except Exception:
+            aux["exchange_netflow"] = None
+    else:
+        aux["exchange_netflow"] = None
+
+    aux.setdefault("macro", None)

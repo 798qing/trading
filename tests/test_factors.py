@@ -2,7 +2,11 @@
 from types import SimpleNamespace
 
 from detectors.basis import BasisDetector
+from detectors.liquidation import LiquidationDetector
+from detectors.macro import MacroDetector
 from detectors.oi_funding import OIFundingDetector
+from detectors.onchain import OnchainDetector
+from detectors.vol_regime import VolRegimeDetector
 
 
 def _snap(make_klines, rows, sources):
@@ -64,4 +68,68 @@ def test_contango_hot_flips_caution(dcfg, make_klines):
 def test_basis_missing_spot_insufficient(dcfg, make_klines):
     snap = _snap(make_klines, _FLAT, {"mark": {"price": 100.0}})
     r = BasisDetector().detect(snap, dcfg)
+    assert r.warnings
+
+
+# ---------------- stage3 external factors ----------------
+def test_liquidation_long_crowding_tilts_bearish(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT,
+                 {"long_short": {"long_ratio": 0.66, "short_ratio": 0.34,
+                                  "long_short_ratio": 1.94, "status": "fresh"}})
+    r = LiquidationDetector().detect(snap, dcfg)
+    assert r.direction == "bearish"
+    assert "long_crowding" in r.events
+
+
+def test_liquidation_missing_source_is_neutral(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT, {})
+    r = LiquidationDetector().detect(snap, dcfg)
+    assert r.direction == "neutral"
+    assert r.warnings
+
+
+def test_onchain_exchange_netflow_out_is_bullish(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT,
+                 {"exchange_netflow": {"netflow_total": -600.0, "status": "fresh"}})
+    r = OnchainDetector().detect(snap, dcfg)
+    assert r.direction == "bullish"
+    assert "exchange_netflow_out" in r.events
+
+
+def test_onchain_exchange_netflow_in_is_bearish(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT,
+                 {"exchange_netflow": {"netflow_total": 300.0, "status": "fresh"}})
+    r = OnchainDetector().detect(snap, dcfg)
+    assert r.direction == "bearish"
+    assert "exchange_netflow_in" in r.events
+
+
+def test_macro_event_window_sets_constraint_detail(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT,
+                 {"macro": {"risk_state": "risk_off", "event_in_window": True,
+                            "event_name": "CPI", "status": "fresh"}})
+    r = MacroDetector().detect(snap, dcfg)
+    assert r.direction == "bearish"
+    assert r.details["no_macro_event"] is False
+    assert "macro_event_window" in r.events
+
+
+def test_macro_missing_source_defaults_no_event(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT, {})
+    r = MacroDetector().detect(snap, dcfg)
+    assert r.direction == "neutral"
+    assert r.details["no_macro_event"] is True
+
+
+def test_vol_regime_high_vol_classification(dcfg, make_klines):
+    rows = [(100, 103, 97, 100 + (i % 2), 1000.0) for i in range(30)]
+    snap = _snap(make_klines, rows, {})
+    r = VolRegimeDetector().detect(snap, dcfg)
+    assert r.direction == "neutral"
+    assert "high_vol" in r.events
+
+
+def test_vol_regime_insufficient(dcfg, make_klines):
+    snap = _snap(make_klines, _FLAT[:5], {})
+    r = VolRegimeDetector().detect(snap, dcfg)
     assert r.warnings

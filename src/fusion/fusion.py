@@ -141,6 +141,7 @@ def fuse(signals: dict[str, dict], cfg, htf_directions: dict[str, str] | None = 
     struct = signals.get("structure", {})
     vol = signals.get("volume", {})
     adx_sig = signals.get("adx", {})
+    macro_sig = signals.get("macro", {})
     breakout = bool({"breakout_up", "breakdown"} & set(struct.get("events", [])))
     volume_confirmed = (vol.get("details", {}).get("breakout_volume_ok", True)
                         if breakout else True)
@@ -148,13 +149,14 @@ def fuse(signals: dict[str, dict], cfg, htf_directions: dict[str, str] | None = 
         adx_sufficient = adx_sig.get("details", {}).get("adx", 999) >= adx_min
     else:
         adx_sufficient = True
+    no_macro_event = macro_sig.get("details", {}).get("no_macro_event", True)
     trend_aligned = (dominant == "neutral" or candidate == "neutral"
                      or candidate == dominant)
     hard_constraints = {
         "trend_aligned": trend_aligned,
         "volume_confirmed": volume_confirmed,
         "adx_sufficient": adx_sufficient,
-        "no_macro_event": True,           # 阶段1无宏观检测器
+        "no_macro_event": bool(no_macro_event),
     }
 
     # --- veto ---
@@ -167,6 +169,10 @@ def fuse(signals: dict[str, dict], cfg, htf_directions: dict[str, str] | None = 
         veto_reasons.append("结构性否决：突破缩量")
     if not adx_sufficient:
         veto_reasons.append(f"情境否决：ADX<{adx_min}（无趋势）")
+    if not no_macro_event:
+        event = macro_sig.get("details", {}).get("event_name") or "宏观事件"
+        window = cfg.get("hard_constraints.contextual_veto.macro_event_window_min", 60)
+        veto_reasons.append(f"情境否决：{event} 前后 {window}min 宏观窗口")
     vetoed = bool(veto_reasons)
 
     # --- 冲突 ---

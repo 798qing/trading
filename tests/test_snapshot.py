@@ -115,3 +115,23 @@ def test_latest_sources_carries_optional_spot(tmp_path):
 
     sources = latest_sources(store)
     assert sources["spot"]["price"] == 66950.0
+
+
+def test_snapshot_carries_stage3_optional_sources(tmp_path):
+    cfg, store, now, lc = _setup(tmp_path)
+    aux = _aux(now)
+    aux["long_short"] = {"long_ratio": 0.6, "short_ratio": 0.4,
+                         "long_short_ratio": 1.5, "as_of_ts": now}
+    aux["etf_flow"] = {"ticker": "IBIT", "net_flow_usd": 1_000_000.0,
+                       "as_of_ts": now}
+    aux["exchange_netflow"] = {"netflow_total": -123.0, "as_of_ts": now}
+    aux["macro"] = {"risk_state": "risk_on", "event_in_window": False,
+                    "as_of_ts": now}
+
+    build_snapshot(store, cfg, aux, now=now)
+
+    sources = latest_sources(store)
+    assert sources["long_short"]["long_short_ratio"] == 1.5
+    assert sources["etf_flow"]["net_flow_usd"] == 1_000_000.0
+    assert sources["exchange_netflow"]["netflow_total"] == -123.0
+    assert sources["macro"]["risk_state"] == "risk_on"

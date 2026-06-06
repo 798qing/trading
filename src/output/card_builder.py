@@ -13,7 +13,8 @@ _DIR_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪",
 _DIR_TEXT = {"bullish": "看多", "bearish": "看空", "neutral": "中性"}
 _RADAR_LABEL = {"structure": "结构", "volume": "量能", "adx": "ADX", "fib": "斐波",
                 "macd": "MACD", "rsi": "RSI", "wyckoff": "威科夫",
-                "liquidation": "清算", "oi_funding": "OI/费率", "basis": "基差"}
+                "liquidation": "清算", "oi_funding": "OI/费率", "basis": "基差",
+                "onchain": "链上", "macro": "宏观", "vol_regime": "波动"}
 
 
 def _bar(n: int, width: int = 5) -> str:
@@ -193,6 +194,12 @@ def _background_line(a) -> str:
     oi = (a.snapshot.sources.get("oi") or {}).get("oi")
     if oi:
         parts.append(f"OI {oi:,.0f}")
+    etf = (a.snapshot.sources.get("etf_flow") or {}).get("net_flow_usd")
+    if etf is not None:
+        parts.append(f"ETF净流 {etf / 1_000_000:+.1f}M")
+    netflow = (a.snapshot.sources.get("exchange_netflow") or {}).get("netflow_total")
+    if netflow is not None:
+        parts.append(f"交易所净流 {netflow:+,.0f}")
     return " · ".join(parts)
 
 

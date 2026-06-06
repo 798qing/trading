@@ -50,6 +50,9 @@ fusion:
     liquidation: 0.8
     oi_funding: 1.0             # 阶段2接入评分（因子P0-①）
     basis: 0.8                  # 阶段2（因子P0-②）
+    onchain: 0.7                # 阶段3：交易所净流入/净流出
+    macro: 0.6                  # 阶段3：风险偏好/宏观事件窗口
+    vol_regime: 0.4             # 阶段3：波动率背景（无方向，只进雷达）
 
   wyckoff_confidence_gate:      # 置信度门槛，低置信度自动降权
     high: 2.0
@@ -112,6 +115,17 @@ detectors:
   liquidity_filter:             # 缺口2 低流动性时段
     low_volume_ratio: 0.4       # 当前量 < 24h 同周期均量 0.4x
     penalty_multiplier: 0.5
+  liquidation:
+    crowded_long_ratio: 1.5     # 多空比高 → 多头拥挤，反向偏空
+    crowded_short_ratio: 0.67   # 多空比低 → 空头拥挤，反向偏多
+    crowded_account_ratio: 0.62 # long/short account 单边占比拥挤阈值
+  onchain:
+    netflow_btc_threshold: 100  # 交易所净流低于此值视为噪声
+    netflow_btc_strong: 500
+  vol_regime:
+    atr_period: 14
+    high_atr_pct: 1.2
+    low_atr_pct: 0.25
 
 # ============================================================================
 # 以下两段不参与 config_version 指纹（纯展示/运维，热加载安全）

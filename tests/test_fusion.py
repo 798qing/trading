@@ -83,6 +83,17 @@ def test_contextual_veto_low_adx(fcfg):
     assert r.hard_constraints["adx_sufficient"] is False
 
 
+def test_contextual_veto_macro_event_window(fcfg):
+    signals = {"structure": _sig("bullish", 4), "volume": _sig("bullish", 4),
+               "adx": _adx(25),
+               "macro": _sig("neutral", 4, events=["macro_event_window"],
+                             details={"no_macro_event": False, "event_name": "CPI"})}
+    r = fuse(signals, fcfg)
+    assert r.vetoed
+    assert r.hard_constraints["no_macro_event"] is False
+    assert any("CPI" in x for x in r.veto_reasons)
+
+
 def test_long_short_conflict_recorded(fcfg):
     signals = {"structure": _sig("bullish", 4), "volume": _sig("bearish", 4),
                "adx": _adx(25)}

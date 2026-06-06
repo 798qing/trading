@@ -22,10 +22,15 @@ detectors:
   fib: {levels: [0.382, 0.5, 0.618, 0.786], extensions: [1.272, 1.618],
         confluence_tolerance_pct: 0.5}
   rsi: {period: 14, overbought: 70, oversold: 30}
+  liquidation: {crowded_long_ratio: 1.5, crowded_short_ratio: 0.67,
+                crowded_account_ratio: 0.62}
+  onchain: {netflow_btc_threshold: 100, netflow_btc_strong: 500}
+  vol_regime: {atr_period: 14, high_atr_pct: 1.2, low_atr_pct: 0.25}
 fusion:
   base_weights: {structure: 1.5, volume: 2.0, adx: 0.5, fib: 0.8,
                  candle: 1.0, macd: 1.0, rsi: 0.8, wyckoff: 1.2,
-                 oi_funding: 1.0, basis: 0.8}
+                 oi_funding: 1.0, basis: 0.8, liquidation: 0.8,
+                 onchain: 0.7, macro: 0.6, vol_regime: 0.4}
   trend_multiplier: {with_trend: 1.5, against_trend: 0.5}
   data_quality_multiplier: {exact: 1.0, approximated: 0.7, stale: 0.3, unavailable: 0.0}
   trend_multiplier_exempt: [wyckoff]
