@@ -14,6 +14,7 @@
 | `/btcr` | 强制 live 刷新（~2s） | `cli --refresh` |
 | `/btch` | 健康检查（热库/结算/推送） | `cli --health` |
 | `/btcs` | 7 日结算绩效统计 | `cli --stats --days 7` |
+| `/btcw` | 30 日自动权重建议（只读） | `cli --auto-weight --days 30` |
 
 每个是 `type: exec`,跑:
 ```

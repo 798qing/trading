@@ -134,4 +134,6 @@ ops:
     timeout_sec: 20
     fail_pause_after: 3         # 连续 3 次失败 → 暂停 30min
     fail_pause_min: 30
+  auto_weight:
+    min_settled_signals: 30     # P0-6/D13：样本不足只告警，不改权重
   config_watcher_interval_sec: 30
