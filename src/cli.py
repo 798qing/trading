@@ -9,6 +9,7 @@
     python -m cli --json          # 结构化 JSON（供 hermes 二次加工/LLM 解读）
     python -m cli --refresh       # 强制 live 采集最新
     python -m cli --stats         # 已结算信号回测统计
+    python -m cli --health        # 运行健康检查
 """
 from __future__ import annotations
 
@@ -74,10 +75,27 @@ def _run_stats(args, cfg, store) -> int:
     return 0
 
 
+def _run_health(args, cfg, store) -> int:
+    from ops.health import check_health, health_json, render_health
+
+    report = check_health(store, cfg)
+    if args.json:
+        print(health_json(report))
+    else:
+        print(render_health(report))
+    return 0 if report["status"] == "ok" else 1
+
+
 def run(args) -> int:
     cfg = load_config()
     store = Store(cfg.db_path)
     store.init_db()
+    if args.health:
+        try:
+            return _run_health(args, cfg, store)
+        finally:
+            store.close()
+
     if args.stats:
         try:
             return _run_stats(args, cfg, store)
@@ -136,6 +154,7 @@ def main(argv=None) -> int:
     p.add_argument("--refresh", action="store_true", help="强制 live 采集最新")
     p.add_argument("--push", action="store_true", help="按阶段2推送规则发送 Telegram")
     p.add_argument("--stats", action="store_true", help="输出已结算信号回测统计")
+    p.add_argument("--health", action="store_true", help="检查数据库/热库/结算/推送状态")
     p.add_argument("--days", type=int, default=30, help="统计最近 N 天，默认 30")
     p.add_argument("--all-history", action="store_true", help="统计全部历史")
     return run(p.parse_args(argv))

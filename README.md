@@ -21,6 +21,7 @@ python3.11 -m venv .venv
 cp config/secrets.env.example config/secrets.env   # 填入真实 key（已 gitignore）
 .venv/bin/python -m pytest                          # 跑测试
 PYTHONPATH=src .venv/bin/python -m cli --push                      # 显式按阶段2规则主动推送
+PYTHONPATH=src .venv/bin/python -m cli --health                    # 检查热库/结算/推送状态
 PYTHONPATH=src .venv/bin/python -m cli --stats --days 7            # 查看已结算信号表现
 ```
 
@@ -38,6 +39,7 @@ src/
   llm/       provider.py(DeepSeek)  strategist.py  skills/
   output/    card_builder.py  push.py  push_service.py  telegram.py
   backtest/  settle.py  metrics.py  weighting.py
+  ops/       health.py
 tests/
 bot.py / main.py
 ```
