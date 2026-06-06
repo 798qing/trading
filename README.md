@@ -20,6 +20,7 @@ python3.11 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp config/secrets.env.example config/secrets.env   # 填入真实 key（已 gitignore）
 .venv/bin/python -m pytest                          # 跑测试
+.venv/bin/python -m cli --push                      # 显式按阶段2规则主动推送
 ```
 
 ## 目录
@@ -34,7 +35,7 @@ src/
   plan/      plan_builder.py(价格唯一来源)
   review/    validate.py  risk.py
   llm/       provider.py(DeepSeek)  strategist.py  skills/
-  output/    card_builder.py  push.py
+  output/    card_builder.py  push.py  push_service.py  telegram.py
   backtest/  settle.py  metrics.py  weighting.py
 tests/
 bot.py / main.py
